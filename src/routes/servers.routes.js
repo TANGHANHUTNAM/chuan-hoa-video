@@ -6,6 +6,7 @@ const provision = require('../services/provision.service');
 const storage = require('../services/storage.service');
 const ssh = require('../services/ssh.service');
 const jobs = require('../services/job.service');
+const sheets = require('../services/sheets.service');
 const { isPositiveInt } = require('../utils/validators');
 const { AppError } = require('../middleware/error-handler');
 const { formatBytes } = require('../utils/format-bytes');
@@ -35,6 +36,10 @@ router.get('/setup', (req, res) => {
       onboarding: true,
       form: { port: 22, username: 'root', auth_type: 'password', install_key: true },
       error: null,
+      // Only this render passes it: an empty catalogue plus a connected Sheet means
+      // this could be a reinstall, and the restore offer belongs here rather than on
+      // the dashboard the user cannot reach yet.
+      sync: sheets.status(),
     });
   }
 

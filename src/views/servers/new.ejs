@@ -25,6 +25,30 @@
       <div class="alert is-error"><strong>Chưa thêm được VPS</strong><%= error %></div>
     <% } %>
 
+    <%
+    /*
+     * The one place a returning user must be offered the Sheet restore.
+     *
+     * A fresh install has zero servers, so /dashboard bounces to /setup — meaning the
+     * sync card on the dashboard, and the restore button in it, are unreachable exactly
+     * when they are needed. Without this, somebody who copied their .env over would
+     * have to retype the VPS by hand first, which is the work the button exists to save.
+     */
+    if (locals.sync && locals.sync.enabled) { %>
+      <div class="alert is-ok" style="margin-bottom:0.9rem">
+        <strong>Bạn đã từng dùng app này ở máy khác?</strong>
+        File cấu hình ở máy này đang nối với Google Sheet của bạn, nên có thể lấy lại
+        <strong>VPS, project và danh sách phát</strong> từ đó thay vì nhập lại bằng tay.
+        <form method="post" action="/sheets/restore" style="margin-top:0.6rem">
+          <button type="submit" class="btn btn-sm">Lấy dữ liệu từ Sheet về</button>
+        </form>
+        <div class="tiny faint" style="margin-top:0.5rem">
+          Mật khẩu VPS và Stream key vẫn phải nhập lại — hai thứ đó không bao giờ được
+          ghi lên Sheet. Nếu đây là lần đầu bạn dùng app, cứ bỏ qua và điền form dưới.
+        </div>
+      </div>
+    <% } %>
+
     <div class="card">
       <form method="post" action="/servers" id="server-form" data-tabs>
         <input type="hidden" name="onboarding" value="<%= onboarding ? '1' : '0' %>">

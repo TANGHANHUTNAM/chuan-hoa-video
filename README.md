@@ -131,7 +131,13 @@ npm install && npm run setup && npm start
 
 rồi copy `.env` cũ vào — app mở lên nhưng danh sách VPS / project / video **trống**.
 
-Muốn dựng lại: bấm **Lấy dữ liệu từ Sheet về** trong thẻ Google Sheet ở trang Tổng quan.
+Muốn dựng lại: bấm **Lấy dữ liệu từ Sheet về**. Nút này nằm ở **hai chỗ**, vì lúc mới cài
+thì trang Tổng quan chưa mở được (chưa có VPS nào, app đẩy thẳng sang màn hình kết nối VPS):
+
+- **Màn hình đầu tiên** (*Chào mừng bạn — kết nối VPS*): hiện sẵn khi máy có `.env` nối
+  với Sheet mà danh mục còn trống. Đây là chỗ bạn sẽ thấy trước.
+- **Trang Tổng quan → thẻ Google Sheet**: dùng cho những lần sau.
+
 Nó lấy lại **VPS, project và danh sách phát** từ Sheet. Thứ tự đúng là:
 
 1. Bấm **Lấy dữ liệu từ Sheet về** → có VPS và project

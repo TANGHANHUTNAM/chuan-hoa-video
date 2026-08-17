@@ -27,7 +27,7 @@ Một file video phát được cho nhiều fanpage cùng lúc, không nhân b�
 
 ## Chạy trên máy — cách dễ nhất
 
-Bấm đôi vào **`Facebook Live Manager.cmd`**.
+Bấm đôi vào **`Bat dau mo app quan ly live facebook.cmd`**.
 
 File này tự làm hết: kiểm tra Node.js, cài thư viện ở lần đầu, tạo `.env` nếu chưa có,
 bật server rồi mở trình duyệt. Đóng cửa sổ đen đó là tắt app.
@@ -64,7 +64,7 @@ npm run package
 ```
 
 Tạo `dist/facebook-live-manager.zip`. Người nhận giải nén rồi **bấm đôi vào
-`Facebook Live Manager.cmd`** — không cần gõ lệnh gì. Trong zip có sẵn file
+`Bat dau mo app quan ly live facebook.cmd`** — không cần gõ lệnh gì. Trong zip có sẵn file
 `BAT-DAU-TU-DAY.txt` hướng dẫn đúng một bước đó.
 
 Nếu Windows chặn file vừa tải từ mạng: chuột phải file `.cmd` → *Properties* →

@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Double-click launcher, driven by "Facebook Live Manager.cmd".
+ * Double-click launcher, driven by "Bat dau mo app quan ly live facebook.cmd".
  *
  * Everything a non-technical user would otherwise have to type lives here:
  * install dependencies on first run, create .env if missing, start the server,

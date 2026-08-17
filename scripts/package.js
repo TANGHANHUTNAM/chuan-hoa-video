@@ -370,8 +370,8 @@ function main() {
       '',
       'TRONG THƯ MỤC NÀY CÓ HAI APP. Bấm đôi để mở:',
       '',
-      '   1) Facebook Live Manager.cmd   — quản lý VPS và phát live',
-      '   2) Chuan Hoa Video.cmd         — chuẩn hoá video trên máy này',
+      '   1) Bat dau mo app quan ly live facebook.cmd   — quản lý VPS và phát live',
+      '   2) Bat dau mo app chuan hoa video.cmd         — chuẩn hoá video trên máy này',
       '',
       ...(SELF_CONTAINED
         ? ['App mở sau vài giây và trình duyệt tự bật lên.']
@@ -391,7 +391,7 @@ function main() {
       '',
       'Cách làm:',
       '   1. Copy video vào thư mục  video-can-chuan-hoa',
-      '   2. Bấm đôi                 Chuan Hoa Video.cmd',
+      '   2. Bấm đôi                 Bat dau mo app chuan hoa video.cmd',
       '   3. Chọn độ phân giải rồi bấm Chuẩn hoá',
       '   4. Kết quả nằm ở thư mục   video-da-chuan-hoa',
       '   5. Copy file đó lên VPS, rồi bấm "Làm mới" ở trang Video',
@@ -498,11 +498,11 @@ function main() {
 
   console.log('\n  Gửi file đó cho người khác. Họ chỉ cần:');
   if (SELF_CONTAINED) {
-    console.log('    giải nén  →  bấm đôi vào "Facebook Live Manager.cmd"');
-    console.log('             hoặc "Chuan Hoa Video.cmd" để chuẩn hoá video');
+    console.log('    giải nén  →  bấm đôi vào "Bat dau mo app quan ly live facebook.cmd"');
+    console.log('             hoặc "Bat dau mo app chuan hoa video.cmd" để chuẩn hoá video');
     console.log('    (không cần cài Node.js, không cần mạng lúc mở app)\n');
   } else {
-    console.log('    giải nén  →  bấm đôi vào "Facebook Live Manager.cmd"');
+    console.log('    giải nén  →  bấm đôi vào "Bat dau mo app quan ly live facebook.cmd"');
     console.log('    (máy họ cần có Node.js; lần đầu mở sẽ tự cài thư viện)\n');
   }
 }

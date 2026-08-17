@@ -32,8 +32,8 @@ const ROOT = __dirname;
  *
  * Someone who does not write code unzips the folder and has to SEE where the video
  * goes. Burying it in chuan-hoa-video/ meant they had to know to look inside a
- * folder full of code first. So: `Chuan Hoa Video.cmd`, `video-can-chuan-hoa` and
- * `video-da-chuan-hoa` all sit at the top, next to `Facebook Live Manager.cmd`, and
+ * folder full of code first. So: `Bat dau mo app chuan hoa video.cmd`, `video-can-chuan-hoa` and
+ * `video-da-chuan-hoa` all sit at the top, next to `Bat dau mo app quan ly live facebook.cmd`, and
  * only app.js stays out of the way.
  *
  * Overridable so the tool still works if its folder is moved somewhere on its own.

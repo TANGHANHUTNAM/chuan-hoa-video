@@ -2,7 +2,7 @@
 rem ==========================================================================
 rem  Chuan Hoa Video - double-click this file.
 rem
-rem  Sits at the top of the folder, next to "Facebook Live Manager.cmd", so
+rem  Sits at the top of the folder, next to "Bat dau mo app quan ly live facebook.cmd", so
 rem  somebody who does not write code sees both apps and both video folders
 rem  immediately after unzipping - no hunting inside a folder full of code.
 rem

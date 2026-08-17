@@ -78,7 +78,7 @@ SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/AKfycb..../exec
 SHEETS_TOKEN=<chuỗi token ở bước 3>
 ```
 
-Khởi động lại app (đóng cửa sổ đen rồi bấm đôi `Facebook Live Manager.cmd`).
+Khởi động lại app (đóng cửa sổ đen rồi bấm đôi `Bat dau mo app quan ly live facebook.cmd`).
 
 ---
 

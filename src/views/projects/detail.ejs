@@ -1,0 +1,378 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1><%= project.name %></h1>
+        <p class="sub">
+          <%= project.server ? project.server.name : 'Chưa có VPS' %>
+          <% if (project.activeCount) { %>
+            · <span class="status is-live"><span class="dot is-live"></span><%= project.activeCount %> đang live</span>
+          <% } %>
+        </p>
+      </div>
+      <div class="btn-row">
+        <% if (project.destinations.length) { %>
+          <form method="post" action="/projects/<%= project.id %>/start-all">
+            <button type="submit" class="btn btn-primary" <%= project.canStart ? '' : 'disabled' %>>
+              ▶ Phát tất cả
+            </button>
+          </form>
+          <form method="post" action="/projects/<%= project.id %>/stop-all"
+                data-confirm="Dừng tất cả điểm phát của project này?">
+            <button type="submit" class="btn">■ Dừng tất cả</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (notice) { %><div class="alert is-info"><%= notice %></div><% } %>
+    <% if (warnings && warnings.length) { %>
+      <div class="alert is-warn"><strong>Lưu ý</strong>
+        <ul><% warnings.forEach((w) => { %><li><%= w %></li><% }); %></ul>
+      </div>
+    <% } %>
+    <% if (problems && problems.length) { %>
+      <div class="alert is-error"><strong>Một số dòng không thêm được</strong>
+        <ul><% problems.forEach((p) => { %><li><%= p %></li><% }); %></ul>
+      </div>
+    <% } %>
+
+    <% if (!project.canStart) { %>
+      <div class="alert is-warn">
+        <strong>Chưa phát được</strong>
+        <%= project.blockedReason %>
+        <%# Points at the local encoder rather than posting a VPS job: the VPS managed
+            0.32-0.51x realtime while competing with the live streams it serves. %>
+        <% if (project.video && project.video.needsOptimize) { %>
+          <div style="margin-top:0.6rem">
+            <span class="badge is-warn">dùng tool Chuẩn Hoá Video</span>
+            <span class="tiny faint" style="margin-left:0.5rem">
+              rồi copy file kết quả lên VPS và bấm Làm mới ở trang Video
+            </span>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+
+    <%# ---------- playlist ---------- %>
+    <div class="card">
+      <div class="card-head">
+        <h2>Danh sách phát</h2>
+        <span class="card-title-note">
+          <% if (project.isPlaylist) { %>
+            Phát lần lượt <%= project.playlist.length %> video rồi lặp lại từ đầu
+          <% } else { %>
+            Một video phát được cho nhiều fanpage cùng lúc
+          <% } %>
+        </span>
+      </div>
+
+      <% if (project.playlistProblems && project.playlistProblems.length) { %>
+        <div class="alert is-error">
+          <strong>Các video không cùng thông số nên chưa nối được</strong>
+          <p class="small" style="margin:0.3rem 0">
+            Muốn phát nối tiếp nhiều video thì chúng phải cùng độ phân giải, FPS và codec.
+            So với <em><%= project.playlist[0].name %></em>:
+          </p>
+          <ul>
+            <% project.playlistProblems.forEach((p) => { %>
+              <li><strong><%= p.name %></strong>: <%= p.differences.join(', ') %></li>
+            <% }); %>
+          </ul>
+          <%# Normalise converges codec / FPS / colour, but it deliberately keeps each
+              video's orientation and aspect ratio — so for a frame-size mismatch it
+              can never make them match, and saying otherwise sends the user in a
+              circle. %>
+          <% const sizeMismatch = project.playlistProblems.some((p) =>
+               p.differences.some((d) => d.startsWith('độ phân giải'))); %>
+          <p class="small" style="margin:0.4rem 0 0">
+            <% if (sizeMismatch) { %>
+              Khác nhau về <strong>khung hình</strong> thì chuẩn hoá <strong>không</strong> gộp
+              lại được — app giữ nguyên chiều dọc/ngang và tỉ lệ của từng video. Hãy tách thành
+              hai project, mỗi project một khung hình.
+            <% } else { %>
+              Chuẩn hoá lại những video lệch bằng tool <strong>Chuẩn Hoá Video</strong> — bước
+              đó đưa codec, FPS và định dạng màu về cùng một thông số.
+            <% } %>
+          </p>
+        </div>
+      <% } %>
+
+      <% if (!project.playlist.length) { %>
+        <div class="empty" style="padding:1.25rem">
+          <p class="muted" style="margin:0">Project này chưa chọn video.</p>
+        </div>
+      <% } else { %>
+        <% project.playlist.forEach((v, i) => { %>
+          <div class="row-item">
+            <div class="nowrap faint mono" style="flex:0 0 1.5rem"><%= i + 1 %>.</div>
+            <div class="row-main">
+              <div class="title"><%= v.name %></div>
+              <div class="meta">
+                <%= v.sizeLabel %>
+                <% if (v.resolution) { %> · <%= v.resolution %><% } %>
+                <% if (v.fps) { %> · <%= v.fps %> FPS<% } %>
+                <% if (v.codecVideo) { %> · <%= v.codecVideo.toUpperCase() %><% } %>
+                <% if (v.durationLabel) { %> · <%= v.durationLabel %><% } %>
+              </div>
+              <% if (v.complianceNotes.length && v.needsOptimize) { %>
+                <div class="meta" style="color:var(--amber)"><%= v.complianceNotes[0] %></div>
+              <% } %>
+            </div>
+            <div class="row-act">
+              <% if (v.isReady) { %>
+                <span class="badge is-ok">SẴN SÀNG</span>
+              <% } else if (v.needsOptimize) { %>
+                <span class="badge is-warn">CẦN CHUẨN HOÁ</span>
+              <% } else { %>
+                <span class="badge"><%= v.status.toUpperCase() %></span>
+              <% } %>
+
+              <%# Links to the local encoder instead of posting a VPS job — see /local. %>
+              <% if (v.needsOptimize) { %>
+                <span class="badge is-warn">dùng tool Chuẩn Hoá Video</span>
+              <% } %>
+
+              <% if (project.playlist.length > 1) { %>
+                <form method="post" action="/projects/<%= project.id %>/playlist/move">
+                  <input type="hidden" name="video_id" value="<%= v.id %>">
+                  <input type="hidden" name="direction" value="up">
+                  <input type="hidden" name="apply" value="<%= project.activeCount ? 'now' : 'later' %>">
+                  <button type="submit" class="btn btn-sm btn-ghost" title="Lên trên"
+                          <%= i === 0 ? 'disabled' : '' %>>↑</button>
+                </form>
+                <form method="post" action="/projects/<%= project.id %>/playlist/move">
+                  <input type="hidden" name="video_id" value="<%= v.id %>">
+                  <input type="hidden" name="direction" value="down">
+                  <input type="hidden" name="apply" value="<%= project.activeCount ? 'now' : 'later' %>">
+                  <button type="submit" class="btn btn-sm btn-ghost" title="Xuống dưới"
+                          <%= i === project.playlist.length - 1 ? 'disabled' : '' %>>↓</button>
+                </form>
+              <% } %>
+
+              <form method="post" action="/projects/<%= project.id %>/playlist/remove"
+                    data-confirm="Xoá &quot;<%= v.name %>&quot; khỏi danh sách phát?<%= project.playlist.length === 1 ? ' Đây là video cuối cùng nên toàn bộ live của project sẽ bị dừng.' : '' %>">
+                <input type="hidden" name="video_id" value="<%= v.id %>">
+                <input type="hidden" name="apply" value="<%= project.activeCount ? 'now' : 'later' %>">
+                <button type="submit" class="btn btn-sm btn-ghost">Xoá</button>
+              </form>
+            </div>
+          </div>
+
+          <% if (v.job) { %>
+            <%- include('../partials/job-progress', {
+                  job: v.job, heading: 'Đang xử lý: ' + v.name, cancel: true, reload: true }) %>
+          <% } %>
+        <% }); %>
+
+        <% if (project.activeCount) { %>
+          <p class="tiny faint" style="margin:0.7rem 0 0">
+            <%= project.activeCount %> điểm phát đang chạy — mọi thay đổi ở danh sách phát sẽ
+            khởi động lại chúng để áp dụng ngay.
+          </p>
+        <% } %>
+      <% } %>
+
+      <hr class="divider">
+
+      <details>
+        <summary class="small" style="cursor:pointer">
+          <%= project.playlist.length ? 'Thêm video vào danh sách phát' : 'Chọn video' %>
+        </summary>
+
+        <% const available = videos.filter((v) => !project.playlist.some((pv) => pv.id === v.id)); %>
+        <% if (!available.length) { %>
+          <p class="small muted" style="margin-top:0.85rem">
+            Đã dùng hết video trên VPS này. Tải thêm video ở <a href="/videos?server=<%= project.serverId %>">trang Video</a>.
+          </p>
+        <% } else { %>
+          <form method="post" action="/projects/<%= project.id %>/playlist/add" style="margin-top:0.85rem">
+            <div class="field">
+              <label for="add_video_id">Video trên cùng VPS</label>
+              <select class="select" id="add_video_id" name="video_id" required>
+                <option value="">— Chọn video —</option>
+                <% available.forEach((v) => { %>
+                  <option value="<%= v.id %>">
+                    <%= v.name %> (<%= v.sizeLabel %><%= v.resolution ? ' · ' + v.resolution : '' %>)<%= v.isReady ? '' : ' — ' + v.status %>
+                  </option>
+                <% }); %>
+              </select>
+              <div class="hint">
+                Để nối nhiều video liền mạch, chúng cần cùng độ phân giải, FPS và codec.
+                Video đã qua bước chuẩn hoá luôn thoả điều này.
+              </div>
+            </div>
+
+            <% if (project.activeCount) { %>
+              <div class="field">
+                <label class="check">
+                  <input type="radio" name="apply" value="now" checked>
+                  <span>Thêm và khởi động lại <%= project.activeCount %> điểm phát ngay</span>
+                </label>
+                <label class="check" style="margin-top:0.35rem">
+                  <input type="radio" name="apply" value="later">
+                  <span>Chỉ thêm, áp dụng ở lần khởi động lại sau</span>
+                </label>
+              </div>
+            <% } %>
+
+            <button type="submit" class="btn btn-primary btn-sm">Thêm vào danh sách</button>
+          </form>
+        <% } %>
+      </details>
+    </div>
+
+    <%# ---------- destinations ---------- %>
+    <div class="card" data-poll-url="/api/projects/<%= project.id %>/status" data-poll-interval="12000">
+      <div class="card-head">
+        <h2>Điểm phát Facebook</h2>
+        <span class="card-title-note"><%= project.destinations.length %> fanpage</span>
+      </div>
+
+      <% if (!project.destinations.length) { %>
+        <div class="empty">
+          <h3>Chưa có điểm phát nào</h3>
+          <p class="muted">Thêm Stream key từ Facebook Live Producer để bắt đầu.</p>
+        </div>
+      <% } else { %>
+        <% project.destinations.forEach((d) => { %>
+          <div class="row-item">
+            <div class="row-main">
+              <div class="title">
+                <%= d.name %>
+                <span class="badge" title="Cài đặt vòng lặp"><%= d.loopLabel %></span>
+                <% if (d.autoRefresh && d.loopMode === 'infinite') { %>
+                  <span class="badge is-accent" title="Tự làm mới trước giới hạn 8 giờ của Facebook">
+                    tự làm mới <%= d.refreshHours %>h
+                  </span>
+                <% } %>
+              </div>
+              <div class="meta mono tiny"><%= d.maskedUrl %></div>
+              <div class="meta">
+                <span class="status is-<%= d.tone %>" data-bind-class="byId.<%= d.id %>.tone|is">
+                  <span class="dot is-<%= d.tone %>"></span
+                  ><span data-bind="byId.<%= d.id %>.statusLabel"><%= d.statusLabel %></span>
+                </span>
+                <span data-bind="byId.<%= d.id %>.uptime"><%= d.uptime || '' %></span>
+                <% if (d.remaining) { %>
+                  <span class="tiny faint" data-bind="byId.<%= d.id %>.remaining">còn <%= d.remaining %></span>
+                <% } else { %>
+                  <span class="tiny faint" data-bind="byId.<%= d.id %>.remaining"></span>
+                <% } %>
+                <%# Real throughput, not just "the process exists" %>
+                <span class="mono tiny faint" data-bind="byId.<%= d.id %>.throughput"></span>
+                <% if (d.recoverCount) { %> · tự cứu <%= d.recoverCount %> lần<% } %>
+                <% if (d.restartCount) { %> · làm mới <%= d.restartCount %> lần<% } %>
+              </div>
+              <div class="meta tiny" style="color:var(--amber)"
+                   data-bind="byId.<%= d.id %>.behindLabel"></div>
+              <div class="meta" style="color:var(--red)"
+                   data-bind="byId.<%= d.id %>.lastError"><%= d.lastError || '' %></div>
+
+              <details style="margin-top:0.5rem">
+                <summary class="tiny faint" style="cursor:pointer">Cài đặt</summary>
+                <form method="post" action="/lives/<%= d.id %>/update" style="margin-top:0.6rem">
+                  <div class="field" style="max-width:22rem">
+                    <label>Tên fanpage</label>
+                    <input class="input" name="name" value="<%= d.name %>">
+                  </div>
+                  <div class="field" style="max-width:32rem">
+                    <label>Đổi Stream key <span class="faint">(để trống nếu không đổi)</span></label>
+                    <input class="input input-mono" name="key" placeholder="<%= d.maskedUrl %>">
+                  </div>
+                  <%- include('../partials/loop-fields', {
+                        d: d,
+                        playlistSeconds: project.playlistSeconds,
+                        idPrefix: 'edit-' + d.id,
+                      }) %>
+                  <% if (d.isActive) { %>
+                    <p class="small faint" style="margin:0 0 0.6rem">
+                      Điểm phát đang chạy. Cài đặt mới có tác dụng sau khi bấm
+                      <strong>Khởi động lại</strong>.
+                    </p>
+                  <% } %>
+                  <button type="submit" class="btn btn-sm">Lưu cài đặt</button>
+                </form>
+              </details>
+            </div>
+
+            <div class="row-act">
+              <% if (d.isActive) { %>
+                <form method="post" action="/lives/<%= d.id %>/stop">
+                  <button type="submit" class="btn btn-sm">Dừng</button>
+                </form>
+                <form method="post" action="/lives/<%= d.id %>/restart">
+                  <button type="submit" class="btn btn-sm">Khởi động lại</button>
+                </form>
+              <% } else { %>
+                <form method="post" action="/lives/<%= d.id %>/start">
+                  <button type="submit" class="btn btn-sm btn-primary"
+                          <%= project.canStart ? '' : 'disabled' %>>Phát</button>
+                </form>
+              <% } %>
+              <a class="btn btn-sm btn-ghost" href="/lives/<%= d.id %>/logs">Log</a>
+              <form method="post" action="/lives/<%= d.id %>/delete"
+                    data-confirm="Xoá điểm phát &quot;<%= d.name %>&quot;?">
+                <button type="submit" class="btn btn-sm btn-ghost">Xoá</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      <% } %>
+
+      <hr class="divider">
+
+      <details <%= project.destinations.length ? '' : 'open' %>>
+        <summary class="small" style="cursor:pointer">+ Thêm điểm phát Facebook</summary>
+        <form method="post" action="/projects/<%= project.id %>/lives" style="margin-top:0.85rem">
+          <div class="field-row">
+            <div class="field" style="flex:1 1 180px">
+              <label>Tên fanpage</label>
+              <input class="input" name="name" placeholder="Dr.Natro Việt Nam">
+            </div>
+            <div class="field" style="flex:2 1 260px">
+              <label>Stream key hoặc RTMPS URL</label>
+              <input class="input input-mono" name="key" placeholder="FB-1234567890-0-AbCdEf…">
+            </div>
+          </div>
+          <%- include('../partials/loop-fields', {
+                d: null,
+                playlistSeconds: project.playlistSeconds,
+                idPrefix: 'new',
+              }) %>
+          <div class="field">
+            <label for="bulk">Hoặc dán nhiều dòng</label>
+            <textarea class="input" id="bulk" name="bulk" rows="3"
+placeholder="Dr.Natro Việt Nam | FB-1111111111-0-AaAa"></textarea>
+            <div class="btn-row" style="margin-top:0.6rem">
+              <button type="button" class="btn btn-sm btn-ghost" data-bulk-preview>Xem trước</button>
+            </div>
+            <div data-bulk-result></div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Thêm</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="spread">
+        <div>
+          <h3>Xoá project</h3>
+          <p class="small muted" style="margin:0">
+            Dừng và xoá tất cả điểm phát. File video trên VPS <strong>không</strong> bị xoá.
+          </p>
+        </div>
+        <form method="post" action="/projects/<%= project.id %>/delete"
+              data-confirm="Xoá project &quot;<%= project.name %>&quot; và tất cả điểm phát?">
+          <button type="submit" class="btn btn-danger btn-sm">Xoá project</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

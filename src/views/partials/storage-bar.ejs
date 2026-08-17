@@ -1,0 +1,34 @@
+<%
+/*
+ * Storage bar (spec section 34).
+ * Locals: disk (from storage.fromCache / storage.computeSafety), optional compact
+ */
+const tone = disk.level === 'critical' ? 'error' : disk.level === 'warning' ? 'warn' : 'ok';
+%>
+<% if (!disk.known) { %>
+  <p class="small faint">Chưa đọc được dung lượng ổ đĩa.</p>
+<% } else { %>
+  <div class="bar is-<%= tone %>">
+    <span style="width: <%= Math.min(100, disk.usedPercent) %>%"></span>
+  </div>
+  <div class="bar-legend">
+    <span><%= formatBytes(disk.usedBytes) %> / <%= formatBytes(disk.totalBytes) %> đã dùng</span>
+    <span><%= formatBytes(disk.availableBytes) %> trống</span>
+  </div>
+  <% if (!compact) { %>
+    <p class="small muted" style="margin:0.5rem 0 0">
+      Có thể upload an toàn: <strong><%= formatBytes(disk.usableFreeBytes) %></strong>
+      <span class="faint">(đã trừ <%= formatBytes(disk.reserveBytes) %> dự phòng)</span>
+    </p>
+    <% if (disk.level === 'critical') { %>
+      <div class="alert is-error" style="margin:0.6rem 0 0">
+        <strong>Ổ đĩa gần đầy (<%= disk.usedPercent %>%)</strong>
+        Không thể tải video mới lên VPS này. Hãy xoá video cũ hoặc mở rộng ổ đĩa.
+      </div>
+    <% } else if (disk.level === 'warning') { %>
+      <div class="alert is-warn" style="margin:0.6rem 0 0">
+        Ổ đĩa đã dùng <%= disk.usedPercent %>%. Nên dọn bớt video cũ.
+      </div>
+    <% } %>
+  <% } %>
+<% } %>

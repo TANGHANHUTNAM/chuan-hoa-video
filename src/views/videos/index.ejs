@@ -1,0 +1,225 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Video</h1>
+        <p class="sub">Video nằm trên VPS của bạn, không nằm trên app.</p>
+      </div>
+      <div class="btn-row">
+        <% if (selectedServerId) { %>
+          <form method="post" action="/videos/scan">
+            <input type="hidden" name="server_id" value="<%= selectedServerId %>">
+            <button type="submit" class="btn">↻ Làm mới</button>
+          </form>
+        <% } %>
+        <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+      </div>
+    </div>
+
+    <% if (rsyncTarget) { %>
+      <div class="card">
+        <div class="card-head">
+          <h3 style="margin-bottom:0">Cách nhanh nhất cho video nặng</h3>
+          <span class="card-title-note">copy trực tiếp, không qua app</span>
+        </div>
+        <p class="small muted" style="margin:0 0 0.6rem">
+          Copy video từ máy bạn thẳng vào VPS rồi bấm <strong>↻ Làm mới</strong> ở trên.
+          Cách này chỉ đi một chặng và <strong>copy lại được từ chỗ dở</strong> nếu bị đứt —
+          điều mà tải lên qua app không làm được.
+        </p>
+        <pre class="log-view" style="max-height:none"><code>rsync -avP --partial "video.mp4" <%= rsyncTarget %>:<%= videosDir %>/</code></pre>
+        <p class="tiny faint" style="margin:0.5rem 0 0">
+          Trên Windows dùng rsync trong Git Bash hoặc WSL. Không có rsync thì
+          <span class="mono">scp "video.mp4" <%= rsyncTarget %>:<%= videosDir %>/</span>
+          cũng được, nhưng scp không tiếp tục được khi đứt.
+        </p>
+      </div>
+    <% } %>
+
+    <% if (servers.length > 1) { %>
+      <div class="card">
+        <form method="get" action="/videos" class="field-row" style="margin-bottom:0">
+          <div class="field" style="flex:1 1 240px; margin-bottom:0">
+            <label for="server">VPS</label>
+            <select class="select" id="server" name="server" onchange="this.form.submit()">
+              <% servers.forEach((s) => { %>
+                <option value="<%= s.id %>" <%= s.id === selectedServerId ? 'selected' : '' %>>
+                  <%= s.name %> — <%= s.host %>
+                </option>
+              <% }); %>
+            </select>
+          </div>
+        </form>
+      </div>
+    <% } %>
+
+    <% if (disk) { %>
+      <div class="card">
+        <div class="card-head">
+          <h2>Dung lượng VPS</h2>
+          <form method="post" action="/servers/<%= selectedServerId %>/storage/refresh">
+            <button type="submit" class="btn btn-sm btn-ghost">Làm mới</button>
+          </form>
+        </div>
+        <%- include('../partials/storage-bar', { disk: disk, compact: false }) %>
+      </div>
+    <% } %>
+
+    <% if (notice) { %>
+      <div class="alert is-info"><%= notice %></div>
+    <% } %>
+
+    <% if (unusedCount) { %>
+      <div class="card">
+        <div class="spread">
+          <div>
+            <h3 style="margin-bottom:0.15rem">
+              Video không dùng: <%= unusedCount %> · <%= unusedLabel %>
+            </h3>
+            <p class="small muted" style="margin:0">
+              Không project nào đang dùng những video này. Xoá để lấy lại dung lượng VPS.
+            </p>
+          </div>
+          <form method="post" action="/videos/cleanup-unused"
+                data-confirm="Xoá <%= unusedCount %> video không dùng (<%= unusedLabel %>) khỏi VPS? Không thể hoàn tác.">
+            <input type="hidden" name="server_id" value="<%= selectedServerId %>">
+            <button type="submit" class="btn btn-danger btn-sm" <%= selectedServerId ? '' : 'disabled' %>>
+              Dọn <%= unusedLabel %>
+            </button>
+          </form>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (egress.percent >= 60) { %>
+      <div class="alert is-<%= egress.percent >= 80 ? 'warn' : 'info' %>">
+        <strong>Băng thông Render tháng này: <%= egress.usedLabel %> / <%= egress.budgetLabel %> (<%= egress.percent %>%)</strong>
+        Mỗi lần tải video lên qua app đều tính vào hạn mức này.
+        Dùng <em>Nhập từ link</em> để VPS tự tải và không tốn băng thông.
+      </div>
+    <% } %>
+
+    <% if (!videos.length) { %>
+      <div class="card empty">
+        <h3>Chưa có video nào</h3>
+        <p class="muted">Video được thêm khi bạn tạo project.</p>
+        <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+      </div>
+    <% } else { %>
+      <div class="card">
+        <% videos.forEach((v) => { %>
+          <div class="row-item">
+            <% if (v.hasThumbnail) { %>
+              <%# contain, not cover: a vertical 1080×1920 frame cropped to 16:9
+                  showed a meaningless sliver from the middle of the picture. %>
+              <img src="/videos/<%= v.id %>/thumb" alt="" width="112" height="63" loading="lazy"
+                   style="flex:0 0 112px; border-radius:var(--radius-sm); background:var(--surface-2); object-fit:contain">
+            <% } %>
+            <div class="row-main">
+              <div class="title"><%= v.name %></div>
+              <div class="meta">
+                <%= v.sizeLabel %>
+                <% if (v.resolution) { %> · <%= v.resolution %><% } %>
+                <% if (v.fps) { %> · <%= v.fps %> FPS<% } %>
+                <% if (v.codecVideo) { %> · <%= v.codecVideo.toUpperCase() %><% } %>
+                <% if (v.codecAudio) { %> · <%= v.codecAudio.toUpperCase() %><% } %>
+                <% if (v.durationLabel) { %> · <%= v.durationLabel %><% } %>
+                <% if (v.maxKeyframeInterval != null) { %>
+                  · keyframe <%= v.maxKeyframeInterval %>s
+                <% } %>
+              </div>
+              <div class="meta">
+                <% if (v.usage.destinationCount) { %>
+                  Đang dùng cho <%= v.usage.destinationCount %> điểm phát
+                  <% if (v.usage.activeCount) { %>
+                    (<span style="color:var(--green)"><%= v.usage.activeCount %> đang live</span>)
+                  <% } %>
+                <% } else { %>
+                  <span class="faint">Chưa dùng ở project nào</span>
+                <% } %>
+              </div>
+              <% if (v.errorMessage) { %>
+                <div class="meta" style="color:var(--red)"><%= v.errorMessage %></div>
+              <% } %>
+            </div>
+
+            <div class="row-act">
+              <% if (v.isReady) { %>
+                <span class="badge is-ok">SẴN SÀNG</span>
+              <% } else if (v.needsOptimize) { %>
+                <span class="badge is-warn">CẦN CHUẨN HOÁ</span>
+              <% } else if (v.isBusy) { %>
+                <span class="badge is-accent"><%= v.status.toUpperCase() %></span>
+              <% } else { %>
+                <span class="badge is-error"><%= v.status.toUpperCase() %></span>
+              <% } %>
+
+              <%# No normalise button here on purpose: encoding happens on the user's
+                  own machine now (see /local). The VPS managed 0.32-0.51x realtime
+                  against 2.53x on their laptop, and that CPU is needed for the live
+                  streams. %>
+              <% if (v.needsOptimize) { %>
+                <span class="badge is-warn">dùng tool Chuẩn Hoá Video</span>
+              <% } %>
+
+              <% if (!v.isBusy) { %>
+                <%# Re-runs ffprobe and recomputes the verdict. The way out when a
+                    stored verdict is stale — and the only action left after a
+                    normalise that ended in error. %>
+                <form method="post" action="/videos/<%= v.id %>/analyze">
+                  <button type="submit" class="btn btn-sm btn-ghost">Kiểm tra lại</button>
+                </form>
+                <form method="post" action="/videos/<%= v.id %>/delete"
+                      data-confirm="Xoá video &quot;<%= v.name %>&quot; khỏi VPS? Không thể hoàn tác.">
+                  <button type="submit" class="btn btn-sm btn-ghost">Xoá</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+
+          <% if (v.job) { %>
+            <%- include('../partials/job-progress', {
+                  job: v.job, heading: 'Đang xử lý: ' + v.name, cancel: true, reload: true }) %>
+          <% } %>
+
+          <%# The output-resolution choice lives on the /local page now, because that is
+              where the encoding happens. Keeping a second copy here would offer a
+              button that encodes on the VPS, which is the thing being moved away from. %>
+
+          <% if (v.complianceNotes.length && v.needsOptimize) { %>
+            <div class="alert is-warn" style="margin:0 0 1rem">
+              <strong>Vì sao cần chuẩn hoá</strong>
+              <ul><% v.complianceNotes.forEach((n) => { %><li><%= n %></li><% }); %></ul>
+              <div class="small" style="margin-top:0.4rem">
+                Chuẩn hoá chạy bằng <strong>tool riêng trên máy bạn</strong> (thư mục <span class="mono">chuan-hoa-video</span>), không chạy trên VPS: cùng một video, VPS 2 core mất khoảng 1 giờ còn máy bạn khoảng 10 phút — và CPU của VPS còn phải phục vụ các buổi live.
+                <ol style="margin:0.4rem 0 0">
+                  <li>Bấm đôi <span class="mono">chuan-hoa-videoChuan Hoa Video.cmd</span></li>
+                  <li>Bỏ video vào thư mục nó chỉ, chọn độ phân giải, bấm chuẩn hoá</li>
+                  <li>Copy file kết quả lên VPS rồi bấm <strong>Làm mới</strong> ở trang này</li>
+                </ol>
+              </div>
+            </div>
+          <% } else if (v.complianceNotes.length && v.status === 'error') { %>
+            <%# A normalise that finished and still failed. Repeating it cannot help,
+                so the notes are shown without offering the button again. %>
+            <div class="alert is-error" style="margin:0 0 1rem">
+              <strong>Bản chuẩn hoá vẫn không đạt chuẩn</strong>
+              <ul><% v.complianceNotes.forEach((n) => { %><li><%= n %></li><% }); %></ul>
+              <div class="small" style="margin-top:0.4rem">
+                Chuẩn hoá lại sẽ cho đúng kết quả này nên app không mở lại nút đó. Hãy bấm
+                <strong>Kiểm tra lại</strong>, hoặc tự xuất video ở 1920×1080 (1080×1920 nếu là
+                video dọc), 30 FPS, H.264 + AAC rồi tải lên lại.
+              </div>
+            </div>
+          <% } %>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

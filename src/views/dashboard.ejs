@@ -1,0 +1,169 @@
+<%- include('partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Tổng quan</h1>
+        <p class="sub">Trạng thái VPS và các buổi live đang chạy.</p>
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+      </div>
+    </div>
+
+    <% if (syncNotice) { %>
+      <div class="alert is-<%= syncNotice.tone %>"><%= syncNotice.text %></div>
+    <% } %>
+
+    <% alerts.forEach((a) => { %>
+      <div class="alert is-<%= a.tone %>">
+        <%= a.text %> <a href="<%= a.href %>">Xem</a>
+      </div>
+    <% }); %>
+
+    <% if (egress.percent >= 80) { %>
+      <div class="alert is-warn">
+        <strong>Băng thông Render đã dùng <%= egress.percent %>%</strong>
+        <%= egress.usedLabel %> / <%= egress.budgetLabel %> tháng này. Vượt hạn mức, Render có thể
+        tạm dừng app. Hãy dùng <em>Nhập từ link</em> để VPS tự tải video.
+      </div>
+    <% } %>
+
+    <div class="grid grid-stats" data-poll-url="/api/dashboard/status" data-poll-interval="15000">
+      <div class="stat"><div class="num" data-bind="servers"><%= stats.servers %></div><div class="lbl">VPS</div></div>
+      <div class="stat"><div class="num" data-bind="projects"><%= stats.projects %></div><div class="lbl">Project</div></div>
+      <div class="stat"><div class="num" data-bind="videos"><%= stats.videos %></div><div class="lbl">Video</div></div>
+      <div class="stat"><div class="num" data-bind="liveNow"><%= stats.liveNow %></div><div class="lbl">Đang live</div></div>
+    </div>
+
+    <%# ---------- live now ---------- %>
+    <% if (lives.length) { %>
+      <h2 style="margin-top:1.5rem">Đang phát</h2>
+      <div class="grid grid-cards">
+        <% lives.forEach((d) => { %>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 style="margin-bottom:0.1rem"><%= d.name %></h3>
+                <div class="tiny faint"><%= d.projectName %></div>
+              </div>
+              <span class="status is-<%= d.tone %>">
+                <span class="dot is-<%= d.tone %>"></span><%= d.statusLabel %>
+              </span>
+            </div>
+
+            <table class="table">
+              <% if (d.videoName) { %><tr><th>Video</th><td><%= d.videoName %></td></tr><% } %>
+              <% if (d.uptime) { %><tr><th>Thời lượng</th><td class="mono"><%= d.uptime %></td></tr><% } %>
+              <% if (d.throughput) { %>
+                <tr>
+                  <th>Luồng</th>
+                  <td class="mono">
+                    <%= d.throughput %>
+                    <% if (d.behind) { %>
+                      <span class="badge is-warn">không theo kịp</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% } %>
+              <% if (d.recoverCount) { %>
+                <tr><th>Tự cứu</th><td><%= d.recoverCount %> lần</td></tr>
+              <% } %>
+              <% if (d.autoRefresh) { %>
+                <tr><th>Tự làm mới</th><td>mỗi <%= d.refreshHours %> giờ</td></tr>
+              <% } %>
+            </table>
+
+            <div class="btn-row" style="margin-top:0.85rem">
+              <form method="post" action="/lives/<%= d.id %>/stop">
+                <button type="submit" class="btn btn-sm">Dừng</button>
+              </form>
+              <form method="post" action="/lives/<%= d.id %>/restart">
+                <button type="submit" class="btn btn-sm">Khởi động lại</button>
+              </form>
+              <a class="btn btn-sm btn-ghost" href="/projects/<%= d.projectId %>">Mở project</a>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (sync.enabled) { %>
+      <h2 style="margin-top:1.5rem">Đồng bộ</h2>
+      <div class="grid grid-cards">
+        <%- include('partials/sheet-sync', { sync: sync }) %>
+      </div>
+    <% } %>
+
+    <%# ---------- servers ---------- %>
+    <h2 style="margin-top:1.5rem">VPS</h2>
+    <div class="grid grid-cards">
+      <% servers.forEach((s) => { %>
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3 style="margin-bottom:0.1rem"><%= s.name %></h3>
+              <div class="tiny mono faint"><%= s.host %></div>
+            </div>
+            <% if (s.setupState === 'ready') { %>
+              <span class="status is-ok"><span class="dot is-ok"></span>Sẵn sàng</span>
+            <% } else if (s.setupState === 'provisioning') { %>
+              <span class="status is-warn"><span class="dot is-warn"></span>Đang chuẩn bị</span>
+            <% } else if (s.setupState === 'failed') { %>
+              <span class="status is-error"><span class="dot is-error"></span><%= s.problemCount %> lỗi</span>
+            <% } else { %>
+              <span class="status is-idle"><span class="dot is-idle"></span>Chưa kiểm tra</span>
+            <% } %>
+          </div>
+
+          <%- include('partials/storage-bar', { disk: s.disk, compact: true }) %>
+
+          <p class="tiny faint" style="margin:0.7rem 0 0">
+            <%= s.osName || 'Chưa rõ hệ điều hành' %>
+            <% if (s.cpuCores) { %> · <%= s.cpuCores %> CPU<% } %>
+            <% if (s.capacity) { %> · ~<%= s.capacity.maxLives %> live cùng lúc<% } %>
+          </p>
+
+          <div class="btn-row" style="margin-top:0.85rem">
+            <a class="btn btn-sm" href="/servers/<%= s.id %>">Quản lý</a>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+
+    <%# ---------- projects ---------- %>
+    <% if (projects.length) { %>
+      <h2 style="margin-top:1.5rem">Project</h2>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Project</th><th>VPS</th><th>Video</th><th class="num">Fanpage</th><th class="num">Đang live</th><th></th></tr>
+            </thead>
+            <tbody>
+              <% projects.forEach((p) => { %>
+                <tr>
+                  <td><strong><%= p.name %></strong></td>
+                  <td><%= p.serverName %></td>
+                  <td><%= p.videoName || '—' %></td>
+                  <td class="num"><%= p.destinationCount %></td>
+                  <td class="num">
+                    <% if (p.activeCount) { %>
+                      <span style="color:var(--green); font-weight:600"><%= p.activeCount %></span>
+                    <% } else { %>—<% } %>
+                  </td>
+                  <td><a class="btn btn-sm btn-ghost" href="/projects/<%= p.id %>">Mở</a></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('partials/foot') %>

@@ -1,0 +1,56 @@
+<%
+/*
+ * Progress card for a background job.
+ *
+ * Locals:
+ *   job       job row (from job.service)
+ *   heading   optional card title
+ *   cancel    optional boolean, show a Cancel button
+ *   reload    optional boolean, reload the page when the job finishes
+ */
+const finished = ['success', 'failed', 'cancelled'].includes(job.status);
+const tone = job.status === 'failed' ? 'error'
+  : job.status === 'cancelled' ? 'warn'
+  : job.status === 'success' ? 'ok' : 'accent';
+%>
+<div class="card"
+     data-poll-url="/api/jobs/<%= job.id %>"
+     data-poll-interval="2000"
+     data-poll-stop-when="success,failed,cancelled"
+     data-poll-stop-field="status"
+     <%= reload ? 'data-poll-reload' : '' %>>
+
+  <div class="card-head">
+    <h3><%= heading || 'Đang xử lý' %></h3>
+    <span class="badge is-<%= tone %>" data-bind-class="status|is"
+          data-bind="statusLabel"><%= job.status %></span>
+  </div>
+
+  <div class="bar is-<%= tone %>">
+    <span style="width: <%= job.progress_percent %>%" data-bind-width="percent"></span>
+  </div>
+  <div class="bar-legend">
+    <span data-bind="step"><%= job.step || 'Đang chuẩn bị…' %></span>
+    <span><span data-bind="percent"><%= job.progress_percent %></span>%</span>
+  </div>
+
+  <% if (job.error_message) { %>
+    <div class="alert is-error" style="margin-top:0.85rem; margin-bottom:0">
+      <strong>Không thành công</strong>
+      <%= job.error_message %>
+    </div>
+  <% } %>
+
+  <% if (job.detail) { %>
+    <pre class="log-view" style="margin-top:0.85rem; max-height:160px"><%= job.detail %></pre>
+  <% } %>
+
+  <% if (cancel && !finished) { %>
+    <div class="btn-row" style="margin-top:0.85rem">
+      <form method="post" action="/api/jobs/<%= job.id %>/cancel"
+            data-confirm="Huỷ tiến trình này?">
+        <button type="submit" class="btn btn-sm btn-danger">Huỷ</button>
+      </form>
+    </div>
+  <% } %>
+</div>

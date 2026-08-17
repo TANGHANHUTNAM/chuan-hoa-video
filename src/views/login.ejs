@@ -1,0 +1,36 @@
+<%- include('partials/head', { title: 'Đăng nhập' }) %>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="brand">
+      <strong style="font-size:1.15rem">📡 Facebook Live Manager</strong>
+      <span class="faint small">Phát Facebook Live từ VPS của bạn</span>
+    </div>
+
+    <div class="card">
+      <% if (error) { %>
+        <div class="alert is-error"><%= error %></div>
+      <% } %>
+
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="<%= next || '' %>">
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input class="input" type="email" id="email" name="email" required autocomplete="username"
+                 autofocus value="<%= email || '' %>">
+        </div>
+
+        <div class="field">
+          <label for="password">Mật khẩu</label>
+          <input class="input" type="password" id="password" name="password" required
+                 autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Đăng nhập</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

@@ -1,0 +1,96 @@
+<%
+/*
+ * Google Sheet sync card (plan Phase 3, phần C).
+ * Locals: sync (from sheets.service.status())
+ *
+ * Shown only when the Sheet is connected. Someone who has not set up a Sheet does
+ * not need a card telling them so on every visit.
+ */
+if (sync && sync.enabled) {
+  const tone = !sync.healthy ? 'error' : sync.usage.nearCeiling ? 'warn' : 'ok';
+  const age = sync.ageSeconds;
+  const ageLabel =
+    age == null ? 'chưa đọc lần nào'
+    : age < 90 ? `${age}s trước`
+    : `${Math.round(age / 60)} phút trước`;
+%>
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h3 style="margin-bottom:0.1rem">Google Sheet</h3>
+        <div class="tiny faint">Dữ liệu của app được ghi lên Sheet của bạn</div>
+      </div>
+      <span class="status is-<%= tone %>">
+        <span class="dot is-<%= tone %>"></span>
+        <%= sync.healthy ? 'Đang đồng bộ' : 'Có vấn đề' %>
+      </span>
+    </div>
+
+    <% if (!sync.healthy) { %>
+      <div class="alert is-error" style="margin:0 0 0.6rem">
+        <strong>Chưa đồng bộ được với Google Sheet.</strong>
+        <%= sync.lastError || 'Không rõ nguyên nhân.' %>
+        <br />
+        Buổi live đang chạy <strong>không</strong> bị ảnh hưởng — FFmpeg nằm trên VPS của bạn.
+        Nút Dừng, Khởi động lại và Dọn dung lượng vẫn dùng được bình thường.
+      </div>
+    <% } %>
+
+    <% if (sync.stuck > 0) { %>
+      <div class="alert is-error" style="margin:0 0 0.6rem">
+        <strong><%= sync.stuck %> dòng không đẩy lên Sheet được</strong> sau nhiều lần thử.
+        Bấm <em>Đẩy toàn bộ lên Sheet</em> để ghi lại từ đầu.
+      </div>
+    <% } %>
+
+    <table class="table">
+      <tr>
+        <th>Đọc từ Sheet</th>
+        <td><%= ageLabel %></td>
+      </tr>
+      <tr>
+        <th>Đang chờ đẩy lên</th>
+        <td><%= sync.pending %> dòng</td>
+      </tr>
+      <tr>
+        <th>Hạn mức hôm nay</th>
+        <td>
+          <span class="mono"><%= sync.usage.percent %>%</span>
+          <span class="faint tiny">
+            · <%= sync.usage.calls %> lần gọi
+            <% if (sync.usage.avgMs) { %>· trung bình <%= sync.usage.avgMs %>ms<% } %>
+          </span>
+        </td>
+      </tr>
+    </table>
+
+    <% if (sync.usage.nearCeiling) { %>
+      <div class="alert is-warn" style="margin:0.6rem 0 0">
+        Đã dùng <%= sync.usage.percent %>% hạn mức Apps Script của hôm nay
+        (Gmail thường được 90 phút/ngày). App tạm ngưng đồng bộ định kỳ để không bị
+        Google chặn; dữ liệu vẫn an toàn trong máy và sẽ đẩy lên sau.
+        Hạn mức reset lúc <strong>14:00</strong> giờ Việt Nam.
+      </div>
+    <% } %>
+
+    <div class="btn-row" style="margin-top:0.8rem">
+      <form method="post" action="/sheets/pull">
+        <button type="submit" class="btn btn-ghost btn-sm">Đọc lại từ Sheet</button>
+      </form>
+      <% if (sync.pending > 0) { %>
+        <form method="post" action="/sheets/flush">
+          <button type="submit" class="btn btn-ghost btn-sm">Đẩy ngay (<%= sync.pending %>)</button>
+        </form>
+      <% } %>
+      <form method="post" action="/sheets/push-all">
+        <button type="submit" class="btn btn-ghost btn-sm">Đẩy toàn bộ lên Sheet</button>
+      </form>
+    </div>
+
+    <p class="small faint" style="margin:0.7rem 0 0">
+      Sửa được trên Sheet: <strong>name</strong>, <strong>note</strong>, và
+      <strong>position</strong> ở tab Playlist. Các cột khác do app ghi và sẽ bị ghi đè.
+      Đừng sửa <strong>id</strong> — app dùng nó để tìm tiến trình đang phát trên VPS.
+    </p>
+  </div>
+<% } %>

@@ -1,0 +1,32 @@
+{
+  "name": "facebook-live-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Control panel to run Facebook Live from videos hosted on your own Ubuntu VPS",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "setup": "node scripts/setup.js",
+    "package": "node scripts/package.js",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js",
+    "bundle-runtime": "node scripts/bundle-runtime.js",
+    "bundle-ffmpeg": "node scripts/bundle-ffmpeg.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "bcryptjs": "^3.0.2",
+    "busboy": "^1.6.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "ssh2": "^1.16.0"
+  }
+}

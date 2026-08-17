@@ -1,0 +1,21 @@
+<aside class="sidebar">
+  <a class="brand" href="/dashboard">
+    <strong>📡 Live Manager</strong>
+    <span>Facebook Live từ VPS của bạn</span>
+  </a>
+
+  <nav class="nav">
+    <% const here = (typeof nav !== 'undefined') ? nav : ''; %>
+    <a href="/dashboard" class="<%= here === 'dashboard' ? 'active' : '' %>">Tổng quan</a>
+    <a href="/projects" class="<%= here === 'projects' ? 'active' : '' %>">Project</a>
+    <a href="/videos" class="<%= here === 'videos' ? 'active' : '' %>">Video</a>
+    <a href="/servers" class="<%= here === 'servers' ? 'active' : '' %>">VPS</a>
+    <a href="/logs" class="<%= here === 'logs' ? 'active' : '' %>">Lịch sử</a>
+  </nav>
+
+  <div class="sidebar-foot">
+    <form method="post" action="/logout">
+      <button type="submit" class="btn btn-ghost btn-sm btn-block">Đăng xuất</button>
+    </form>
+  </div>
+</aside>

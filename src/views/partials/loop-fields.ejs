@@ -1,0 +1,80 @@
+<%
+/*
+ * Loop / duration settings for a live destination.
+ * Locals:
+ *   d               destination view, or null when adding a new one
+ *   playlistSeconds total length of one pass, or null if not known yet
+ *   idPrefix        unique prefix, because this partial appears several times on
+ *                   one page and radio groups must not collide
+ */
+const mode = d ? d.loopMode : 'infinite';
+const count = d && d.loopCount ? d.loopCount : 2;
+const hours = d && d.loopHours ? d.loopHours : 4;
+const oneLap = playlistSeconds
+  ? (playlistSeconds >= 3600
+      ? `${Math.round((playlistSeconds / 3600) * 10) / 10} giờ`
+      : `${Math.round(playlistSeconds / 60)} phút`)
+  : null;
+%>
+<div class="field">
+  <label>Phát trong bao lâu</label>
+
+  <label class="check">
+    <input type="radio" name="loop_mode" value="infinite" <%= mode === 'infinite' ? 'checked' : '' %>>
+    <span>
+      Lặp mãi cho tới khi tôi bấm Dừng
+      <div class="hint">Phù hợp với kênh chạy 24/7.</div>
+    </span>
+  </label>
+
+  <label class="check">
+    <input type="radio" name="loop_mode" value="count" <%= mode === 'count' ? 'checked' : '' %>>
+    <span>
+      Lặp
+      <input class="input" type="number" name="loop_count" min="1" max="500" step="1"
+             value="<%= count %>" style="width:5.5rem;display:inline-block">
+      vòng rồi dừng
+      <div class="hint">
+        <% if (oneLap) { %>
+          Một vòng dài <strong><%= oneLap %></strong>, nên 2 vòng ≈
+          <%= Math.round((playlistSeconds * 2 / 3600) * 10) / 10 %> giờ.
+        <% } else { %>
+          Cần biết độ dài video mới tính được số vòng. Hãy đợi app phân tích xong video,
+          hoặc dùng lựa chọn theo giờ bên dưới.
+        <% } %>
+      </div>
+    </span>
+  </label>
+
+  <label class="check">
+    <input type="radio" name="loop_mode" value="hours" <%= mode === 'hours' ? 'checked' : '' %>>
+    <span>
+      Tự dừng sau
+      <%# step="any", not step="0.5".
+          The browser measures steps FROM min, so min="0.1" with step="0.5" made the
+          valid values 0.1, 0.6, 1.1 … 3.6, 4.1 — every whole number was rejected.
+          Typing 4 (the obvious value) produced "the two nearest valid values are 3.6
+          and 4.1" and blocked the whole form, including when the user had chosen
+          "Lặp mãi" and this box was irrelevant. The range is enforced server-side in
+          normalizeLoop, which can also explain itself in Vietnamese. %>
+      <input class="input" type="number" name="loop_hours" min="0.1" max="720" step="any"
+             value="<%= hours %>" style="width:5.5rem;display:inline-block">
+      giờ
+      <div class="hint">Dừng theo thời gian, không cần biết độ dài video.</div>
+    </span>
+  </label>
+</div>
+
+<div class="field">
+  <label class="check">
+    <input type="checkbox" name="auto_refresh" value="1" <%= !d || d.autoRefresh ? 'checked' : '' %>>
+    <span>
+      Tự làm mới phiên live trước giới hạn 8 giờ của Facebook
+      <div class="hint">
+        Facebook cắt buổi live ở mốc 8 giờ. Bật mục này để live chạy liên tục.
+        Với buổi live ngắn hơn 7 giờ 45 thì mục này không có tác dụng gì — chưa tới mốc đó
+        đã kết thúc.
+      </div>
+    </span>
+  </label>
+</div>

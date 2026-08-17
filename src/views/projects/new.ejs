@@ -1,0 +1,218 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Tạo project</h1>
+        <p class="sub">Đặt tên, chọn video, dán Stream key từ Facebook. Xong.</p>
+      </div>
+      <a class="btn btn-ghost" href="/projects">Quay lại</a>
+    </div>
+
+    <% if (error) { %>
+      <div class="alert is-error"><strong>Chưa tạo được project</strong><%= error %></div>
+    <% } %>
+
+    <% if (egress.percent >= 80) { %>
+      <div class="alert is-warn">
+        <strong>Băng thông Render đã dùng <%= egress.percent %>%</strong>
+        <%= egress.usedLabel %> / <%= egress.budgetLabel %> trong tháng này.
+        Hãy dùng <em>Nhập từ link</em> thay cho tải lên từ máy — cách đó không tốn băng thông Render.
+      </div>
+    <% } %>
+
+    <form method="post" action="/projects" id="project-form">
+      <ol class="steps">
+        <%# ---------- 1. Project ---------- %>
+        <li>
+          <h2>Đặt tên project</h2>
+          <div class="card">
+            <div class="field">
+              <label for="name">Tên project</label>
+              <input class="input" id="name" name="name" required autofocus
+                     placeholder="Mega Live Dr.Natro" value="<%= form.name || '' %>">
+            </div>
+
+            <% if (autoSelected) { %>
+              <input type="hidden" name="server_id" value="<%= serverId %>">
+              <p class="small muted" style="margin:0">
+                VPS: <strong><%= servers[0].name %></strong>
+                <span class="faint mono">(<%= servers[0].host %>)</span>
+              </p>
+            <% } else { %>
+              <div class="field" style="margin-bottom:0">
+                <label for="server_id">Chạy trên VPS</label>
+                <select class="select" id="server_id" name="server_id" data-reload-on-change>
+                  <% servers.forEach((s) => { %>
+                    <option value="<%= s.id %>" <%= s.id === serverId ? 'selected' : '' %>>
+                      <%= s.name %> — <%= s.host %>
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+            <% } %>
+          </div>
+        </li>
+
+        <%# ---------- 2. Video ---------- %>
+        <li>
+          <h2>Chọn video</h2>
+          <div class="card" data-video-picker data-server-id="<%= serverId %>">
+            <% if (disk) { %>
+              <%- include('../partials/storage-bar', { disk: disk, compact: false }) %>
+              <hr class="divider">
+            <% } %>
+
+            <input type="hidden" name="video_id" id="video_id" value="<%= form.video_id || '' %>">
+
+            <div data-tabs>
+              <div class="tabs" role="tablist">
+                <button type="button" class="tab" role="tab" aria-controls="pick-existing"
+                        aria-selected="true">Video đã có</button>
+                <button type="button" class="tab" role="tab" aria-controls="pick-upload">Tải từ máy tính</button>
+                <button type="button" class="tab" role="tab" aria-controls="pick-link">Nhập từ link</button>
+              </div>
+
+              <%# --- existing --- %>
+              <div class="tab-panel" id="pick-existing">
+                <% if (!videos.length) { %>
+                  <div class="empty">
+                    <h3>Chưa có video nào trên VPS này</h3>
+                    <p class="muted">Dùng tab “Tải từ máy tính” hoặc “Nhập từ link”.</p>
+                  </div>
+                <% } else { %>
+                  <% videos.forEach((v) => { %>
+                    <label class="row-item" style="cursor:pointer">
+                      <input type="radio" name="video_pick" value="<%= v.id %>"
+                             data-pick-video <%= v.isReady ? '' : 'disabled' %>>
+                      <div class="row-main">
+                        <div class="title"><%= v.name %></div>
+                        <div class="meta">
+                          <%= v.sizeLabel %>
+                          <% if (v.resolution) { %> · <%= v.resolution %><% } %>
+                          <% if (v.fps) { %> · <%= v.fps %> FPS<% } %>
+                          <% if (v.durationLabel) { %> · <%= v.durationLabel %><% } %>
+                        </div>
+                      </div>
+                      <div class="row-act">
+                        <% if (v.isReady) { %>
+                          <span class="badge is-ok">SẴN SÀNG</span>
+                        <% } else if (v.needsOptimize) { %>
+                          <span class="badge is-warn">CẦN CHUẨN HOÁ</span>
+                        <% } else { %>
+                          <span class="badge"><%= v.status.toUpperCase() %></span>
+                        <% } %>
+                      </div>
+                    </label>
+                  <% }); %>
+                  <p class="tiny faint" style="margin:0.7rem 0 0">
+                    Video “cần chuẩn hoá” phải được xử lý ở trang Video trước khi dùng.
+                    Một video có thể dùng cho nhiều điểm phát cùng lúc mà không bị nhân bản.
+                  </p>
+                <% } %>
+              </div>
+
+              <%# --- upload --- %>
+              <div class="tab-panel" id="pick-upload" hidden>
+                <div class="field">
+                  <label for="upload-file">Chọn file video</label>
+                  <input class="input" type="file" id="upload-file" accept="video/*">
+                  <div class="hint">
+                    File đi từ máy bạn qua app rồi lên VPS. Cách này tốn băng thông Render,
+                    nên với file lớn hãy ưu tiên “Nhập từ link”.
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button type="button" class="btn" data-upload-start>Tải lên VPS</button>
+                  <button type="button" class="btn btn-ghost" data-upload-cancel hidden>Huỷ</button>
+                </div>
+                <div data-upload-progress hidden style="margin-top:0.85rem">
+                  <div class="bar is-accent"><span style="width:0%"></span></div>
+                  <div class="bar-legend"><span data-upload-label>Đang tải lên…</span><span data-upload-percent>0%</span></div>
+                </div>
+                <div data-upload-result></div>
+              </div>
+
+              <%# --- link --- %>
+              <div class="tab-panel" id="pick-link" hidden>
+                <div class="field">
+                  <label for="link-url">Link tới file video</label>
+                  <input class="input input-mono" type="url" id="link-url"
+                         placeholder="https://drive.google.com/file/d/…/view">
+                  <div class="hint">
+                    VPS tự tải file về, không đi qua app nên nhanh hơn và không tốn băng thông Render.
+                    Dùng được: link trực tiếp, Dropbox, OneDrive, Google Drive (phải chia sẻ
+                    “Anyone with the link”).
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button type="button" class="btn" data-link-check>Kiểm tra link</button>
+                  <button type="button" class="btn btn-primary" data-link-import hidden>Bắt đầu tải về VPS</button>
+                </div>
+                <div data-link-result></div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <%# ---------- 3. Destinations ---------- %>
+        <li>
+          <h2>Dán Stream key từ Facebook</h2>
+          <div class="card">
+            <p class="small muted">
+              Mở Facebook Live Producer → <em>Use stream key</em> → copy ô <strong>Stream key</strong>
+              (dạng <span class="mono">FB-…</span>) rồi dán vào đây. Mỗi fanpage một dòng.
+            </p>
+
+            <div data-dest-rows>
+              <div class="field-row" data-dest-row>
+                <div class="field" style="flex:1 1 180px">
+                  <label>Tên fanpage</label>
+                  <input class="input" name="dest_name" placeholder="Dr.Natro Việt Nam">
+                </div>
+                <div class="field" style="flex:2 1 260px">
+                  <label>Stream key hoặc RTMPS URL</label>
+                  <input class="input input-mono" name="dest_key" placeholder="FB-1234567890-0-AbCdEf…">
+                </div>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button type="button" class="btn btn-sm" data-dest-add>+ Thêm fanpage</button>
+            </div>
+
+            <hr class="divider">
+
+            <div class="field" style="margin-bottom:0">
+              <label for="destinations_bulk">Hoặc dán nhiều dòng một lúc</label>
+              <textarea class="input" id="destinations_bulk" name="destinations_bulk" rows="4"
+placeholder="Dr.Natro Việt Nam | FB-1111111111-0-AaAa
+Dr.Natro Hợp Tác | FB-2222222222-0-BbBb"></textarea>
+              <div class="hint">Mỗi dòng: <span class="mono">Tên | Stream key</span>. Chỉ dán key cũng được.</div>
+              <div class="btn-row" style="margin-top:0.6rem">
+                <button type="button" class="btn btn-sm" data-bulk-preview>Xem trước</button>
+              </div>
+              <div data-bulk-result></div>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <div class="card">
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Tạo project</button>
+          <a class="btn btn-ghost" href="/projects">Huỷ</a>
+        </div>
+        <p class="small faint" style="margin:0.8rem 0 0">
+          Sau khi tạo, bạn bấm <strong>Phát tất cả</strong> ở trang project để bắt đầu live.
+          Video sẽ tự phát lặp lại liên tục.
+        </p>
+      </div>
+    </form>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

@@ -1,0 +1,7 @@
+Thu muc nay chi chua code cua app Chuan Hoa Video.
+
+Ban KHONG can mo gi trong day.
+
+De dung app:  bam doi file "Chuan Hoa Video.cmd" o thu muc BEN NGOAI
+Bo video vao: thu muc "video-can-chuan-hoa" o thu muc BEN NGOAI
+Ket qua o:    thu muc "video-da-chuan-hoa" o thu muc BEN NGOAI

@@ -1,0 +1,56 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Project</h1>
+        <p class="sub">Mỗi project gồm một video và nhiều fanpage Facebook.</p>
+      </div>
+      <% if (hasReadyServer) { %>
+        <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+      <% } %>
+    </div>
+
+    <% if (!hasReadyServer) { %>
+      <div class="card empty">
+        <h3>Cần một VPS đã sẵn sàng</h3>
+        <p class="muted">Thêm và chuẩn bị một VPS trước khi tạo project.</p>
+        <a class="btn btn-primary" href="/setup">Kết nối VPS</a>
+      </div>
+    <% } else if (!projects.length) { %>
+      <div class="card empty">
+        <h3>Chưa có project nào</h3>
+        <p class="muted">Tạo project, chọn video, dán Stream key Facebook là live được.</p>
+        <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+      </div>
+    <% } else { %>
+      <div class="grid grid-cards">
+        <% projects.forEach((p) => { %>
+          <div class="card">
+            <div class="card-head">
+              <h3 style="margin-bottom:0"><%= p.name %></h3>
+              <% if (p.activeCount) { %>
+                <span class="status is-live"><span class="dot is-live"></span><%= p.activeCount %> live</span>
+              <% } else { %>
+                <span class="status is-idle"><span class="dot is-idle"></span>Đã dừng</span>
+              <% } %>
+            </div>
+            <table class="table">
+              <tr><th>VPS</th><td><%= p.serverName %></td></tr>
+              <tr><th>Video</th><td><%= p.videoName || '— chưa chọn —' %></td></tr>
+              <tr><th>Fanpage</th><td><%= p.destinationCount %></td></tr>
+            </table>
+            <div class="btn-row" style="margin-top:0.85rem">
+              <a class="btn btn-sm btn-primary" href="/projects/<%= p.id %>">Mở</a>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

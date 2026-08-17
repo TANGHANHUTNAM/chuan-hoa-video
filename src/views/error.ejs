@@ -1,0 +1,20 @@
+<%- include('partials/head', { title: title }) %>
+
+<div class="auth-wrap">
+  <div class="auth-card" style="max-width:520px">
+    <div class="card">
+      <h1><%= title %></h1>
+      <p class="muted"><%= message %></p>
+
+      <% if (details) { %>
+        <pre class="log-view" style="max-height:220px"><%= typeof details === 'string' ? details : JSON.stringify(details, null, 2) %></pre>
+      <% } %>
+
+      <div class="btn-row" style="margin-top:1rem">
+        <a class="btn btn-primary" href="/dashboard">Về trang tổng quan</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

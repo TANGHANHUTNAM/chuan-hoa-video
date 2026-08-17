@@ -1,0 +1,59 @@
+# Render blueprint (spec section 42).
+#
+# Two constraints are not optional:
+#   - numInstances must stay 1. SQLite lives on a persistent disk attached to a
+#     single instance, so horizontal scaling would corrupt it (spec section 6).
+#   - the disk must mount at /var/data. Everything outside it is ephemeral on
+#     Render, so the database would vanish on every deploy (spec section 43).
+#
+# Videos never touch this disk: they live on the user's own VPS.
+
+services:
+  - type: web
+    name: facebook-live-manager
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    numInstances: 1
+    healthCheckPath: /health
+
+    disk:
+      name: live-manager-data
+      mountPath: /var/data
+      # Only SQLite metadata is stored here.
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/live-manager.db
+
+      # Seeded on first boot only; later deploys never overwrite the account.
+      - key: ADMIN_EMAIL
+        value: drnatro@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Render generates these once and keeps them stable across deploys.
+      # APP_ENCRYPTION_KEY must be 64 hex characters: generateValue produces a
+      # hex string of the requested length.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APP_ENCRYPTION_KEY
+        sync: false
+
+      - key: STORAGE_RESERVE_PERCENT
+        value: 10
+      - key: STORAGE_RESERVE_MIN_GB
+        value: 5
+      - key: MAX_UPLOAD_GB
+        value: 10
+
+      # Render bills outbound bandwidth and an SFTP push to the VPS counts.
+      # Set this to your workspace plan's monthly allowance so the app can warn
+      # before Render suspends the service. Hobby 5, Pro 25, Scale 1024.
+      - key: RENDER_BANDWIDTH_BUDGET_GB
+        value: 25

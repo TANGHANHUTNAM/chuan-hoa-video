@@ -1,0 +1,90 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Lịch sử</h1>
+        <p class="sub">
+          Mọi việc app đã làm, và mọi sự cố nó phát hiện được.
+          <% if (incidentCount) { %>
+            <span class="status is-error" style="margin-left:0.35rem">
+              <span class="dot is-error"></span><%= incidentCount %> sự cố
+            </span>
+          <% } %>
+        </p>
+      </div>
+      <div class="btn-row">
+        <% if (onlyIncidents) { %>
+          <a class="btn" href="/logs">Xem tất cả</a>
+        <% } else { %>
+          <a class="btn" href="/logs?only=incidents">Chỉ xem sự cố</a>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (!entries.length) { %>
+      <div class="card empty">
+        <h3><%= onlyIncidents ? 'Chưa có sự cố nào' : 'Chưa có hoạt động nào' %></h3>
+        <p class="muted">
+          <% if (onlyIncidents) { %>
+            Tốt — chưa có buổi live nào chết hay bị treo.
+          <% } else { %>
+            Lịch sử sẽ hiện ở đây khi bạn thêm VPS, tải video hoặc bắt đầu live.
+          <% } %>
+        </p>
+      </div>
+    <% } else { %>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:150px">Thời điểm</th>
+                <th style="width:190px">Loại</th>
+                <th>Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% entries.forEach((e) => { %>
+                <tr>
+                  <td class="tiny mono nowrap"><%= e.createdAt %></td>
+                  <td>
+                    <span class="badge <%= e.tone ? 'is-' + e.tone : '' %>"><%= e.label %></span>
+                  </td>
+                  <td>
+                    <%= e.message %>
+                    <% if (e.entityType === 'live_destination' && e.entityId) { %>
+                      <a class="tiny" href="/lives/<%= e.entityId %>/logs">xem log</a>
+                    <% } else if (e.entityType === 'server' && e.entityId) { %>
+                      <a class="tiny" href="/servers/<%= e.entityId %>">xem VPS</a>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if (pageCount > 1) { %>
+          <div class="spread" style="margin-top:1rem">
+            <span class="small muted">Trang <%= page %> / <%= pageCount %> · <%= total %> dòng</span>
+            <div class="btn-row">
+              <% const qs = onlyIncidents ? '&only=incidents' : ''; %>
+              <% if (page > 1) { %>
+                <a class="btn btn-sm" href="/logs?page=<%= page - 1 %><%= qs %>">← Mới hơn</a>
+              <% } %>
+              <% if (page < pageCount) { %>
+                <a class="btn btn-sm" href="/logs?page=<%= page + 1 %><%= qs %>">Cũ hơn →</a>
+              <% } %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

@@ -1,0 +1,22 @@
+-- Name the OUTPUT RESOLUTION, the way OBS does, instead of only a bar style.
+--
+-- 013 could fit a vertical picture into a 16:9 frame and nothing else, because at
+-- that point the problem was Facebook stretching vertical footage into a landscape
+-- canvas. The opposite then happened on the same account: with the broadcast set to
+-- 9:16, a correct 1920x1080 stream was stretched vertically instead. So the choice
+-- is not "bars or no bars" — it is which frame to deliver, and that has to include
+-- both directions.
+--
+-- OBS states this as "Độ phân giải đầu ra: 1080x1920 · Tỉ lệ khung hình 9:16", and
+-- the user is already fluent in that. Matching the wording means the setting in this
+-- app and the setting they read in OBS mean the same thing.
+--
+--   keep              send the file as it is
+--   1920x1080_pad     fit into 16:9 with black bars
+--   1920x1080_blur    fit into 16:9 with blurred bars
+--   1080x1920_pad     fit into 9:16 with black bars
+--   1080x1920_blur    fit into 9:16 with blurred bars
+--
+-- The two old values only ever meant the 16:9 frame, so they convert directly.
+UPDATE videos SET frame_fit = '1920x1080_pad' WHERE frame_fit = 'pad';
+UPDATE videos SET frame_fit = '1920x1080_blur' WHERE frame_fit = 'blur';

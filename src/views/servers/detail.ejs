@@ -1,0 +1,148 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1><%= server.name %></h1>
+        <p class="sub mono"><%= server.username %>@<%= server.host %>:<%= server.port %></p>
+      </div>
+      <div class="btn-row">
+        <% if (server.isReady) { %>
+          <a class="btn btn-primary" href="/projects/new">+ Tạo project</a>
+        <% } %>
+        <a class="btn btn-ghost" href="/servers">Tất cả VPS</a>
+      </div>
+    </div>
+
+    <% if (job) { %>
+      <%- include('../partials/job-progress', {
+            job: job,
+            heading: 'Đang chuẩn bị VPS',
+            cancel: false,
+            reload: true
+          }) %>
+    <% } else if (server.isReady) { %>
+      <div class="alert is-ok">
+        <strong>VPS đã sẵn sàng phát live</strong>
+        Mọi thứ cần thiết đã được cài đặt. Bạn có thể tạo project và bắt đầu live.
+      </div>
+    <% } else if (server.setupState === 'failed') { %>
+      <div class="alert is-error">
+        <strong>VPS chưa dùng được (<%= server.problemCount %> hạng mục cần xử lý)</strong>
+        Xem danh sách bên dưới. Sau khi xử lý, bấm <em>Kiểm tra lại</em>.
+      </div>
+    <% } else { %>
+      <div class="alert is-info">
+        <strong>Chưa kiểm tra VPS này</strong>
+        Bấm <em>Kiểm tra lại</em> để app tự kiểm tra và cài đặt những gì còn thiếu.
+      </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Tình trạng VPS</h2>
+        <div class="btn-row">
+          <form method="post" action="/servers/<%= server.id %>/provision">
+            <button type="submit" class="btn btn-sm" <%= job ? 'disabled' : '' %>>
+              <%= server.checks.length ? 'Kiểm tra lại' : 'Kiểm tra & chuẩn bị' %>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <% if (server.checks.length) { %>
+        <%- include('../partials/health-checklist', {
+              checks: server.checks,
+              serverId: server.id
+            }) %>
+        <p class="tiny faint" style="margin:0.75rem 0 0">
+          Kiểm tra lần cuối: <%= server.lastCheckedAt || 'chưa từng' %>
+        </p>
+      <% } else { %>
+        <div class="empty">
+          <h3>Chưa có dữ liệu kiểm tra</h3>
+          <p class="muted">Bấm “Kiểm tra &amp; chuẩn bị” để app làm mọi thứ giúp bạn.</p>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="grid grid-cards">
+      <div class="card">
+        <div class="card-head">
+          <h3>Dung lượng</h3>
+          <form method="post" action="/servers/<%= server.id %>/storage/refresh">
+            <button type="submit" class="btn btn-sm btn-ghost">Làm mới</button>
+          </form>
+        </div>
+        <%- include('../partials/storage-bar', { disk: server.disk, compact: false }) %>
+        <div class="btn-row" style="margin-top:0.85rem">
+          <a class="btn btn-sm" href="/videos?server=<%= server.id %>">Quản lý video</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Thông tin kỹ thuật</h3>
+        <table class="table">
+          <tr><th>Hệ điều hành</th><td><%= server.osName || '—' %></td></tr>
+          <tr><th>FFmpeg</th><td class="tiny mono"><%= server.ffmpegVersion || '—' %></td></tr>
+          <tr>
+            <th>RTMPS</th>
+            <td>
+              <% if (server.hasRtmps) { %>
+                <span class="status is-ok"><span class="dot is-ok"></span>Có</span>
+              <% } else { %>
+                <span class="status is-error"><span class="dot is-error"></span>Không</span>
+              <% } %>
+            </td>
+          </tr>
+          <tr><th>CPU / RAM</th><td>
+            <%= server.cpuCores || '—' %> core ·
+            <%= server.ramTotalMb ? Math.round(server.ramTotalMb / 1024) + ' GB' : '—' %>
+          </td></tr>
+          <% if (server.capacity) { %>
+            <tr><th>Băng thông</th><td>
+              <%= server.capacity.nicSpeedMbps %> Mbps
+              <span class="faint">≈ <%= server.capacity.maxLives %> live cùng lúc</span>
+            </td></tr>
+          <% } %>
+          <tr><th>Đăng nhập</th><td>
+            <% if (server.usesAppKey) { %>
+              <span class="badge is-ok">SSH key riêng của app</span>
+            <% } else if (server.authType === 'private_key') { %>
+              <span class="badge">SSH key bạn cung cấp</span>
+            <% } else { %>
+              <span class="badge is-warn">Mật khẩu</span>
+            <% } %>
+          </td></tr>
+        </table>
+
+        <% if (server.fingerprint) { %>
+          <p class="tiny faint" style="margin:0.75rem 0 0">
+            Danh tính SSH đã ghi nhận:<br>
+            <span class="mono"><%= server.fingerprint %></span>
+          </p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="spread">
+        <div>
+          <h3>Xoá VPS khỏi app</h3>
+          <p class="small muted" style="margin:0">
+            Chỉ xoá khỏi app. Video và file trên VPS <strong>không</strong> bị xoá.
+          </p>
+        </div>
+        <form method="post" action="/servers/<%= server.id %>/delete"
+              data-confirm="Xoá VPS &quot;<%= server.name %>&quot; khỏi app? Video trên VPS sẽ không bị xoá.">
+          <button type="submit" class="btn btn-danger btn-sm">Xoá VPS</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

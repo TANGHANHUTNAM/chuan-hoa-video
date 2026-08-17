@@ -1,0 +1,34 @@
+<%
+/*
+ * Provisioning checklist.
+ *
+ * Every row is plain language and every failure that we know how to repair gets
+ * its own button — the user is never shown a Linux command to run
+ * (spec section 14, plan Phần 4).
+ *
+ * Locals: checks (array), serverId
+ */
+const ICONS = { ok: '✓', warn: '!', error: '✕', skipped: '○', running: '⋯' };
+const CLASSES = { ok: 'ok', warn: 'warn', error: 'err', skipped: 'idle', running: 'run' };
+%>
+<div class="checklist">
+  <% checks.forEach((check) => { %>
+    <div class="check-row">
+      <div class="icon <%= CLASSES[check.status] || 'idle' %>"><%= ICONS[check.status] || '○' %></div>
+      <div class="body">
+        <div class="name"><%= check.name %></div>
+        <div class="detail"><%= check.detail %></div>
+        <% if (check.fingerprint) { %>
+          <div class="detail mono tiny faint" style="margin-top:0.15rem"><%= check.fingerprint %></div>
+        <% } %>
+      </div>
+      <% if (check.fix === 'reinstall-ffmpeg') { %>
+        <div class="act">
+          <form method="post" action="/servers/<%= serverId %>/reinstall-ffmpeg">
+            <button type="submit" class="btn btn-sm">Cài lại FFmpeg</button>
+          </form>
+        </div>
+      <% } %>
+    </div>
+  <% }); %>
+</div>

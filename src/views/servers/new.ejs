@@ -1,0 +1,116 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="<%= onboarding ? 'auth-wrap' : 'shell' %>">
+  <% if (!onboarding) { %>
+    <%- include('../partials/nav', { nav: nav }) %>
+  <% } %>
+
+  <main class="<%= onboarding ? 'auth-card' : 'main' %>" style="<%= onboarding ? 'max-width:620px' : '' %>">
+    <% if (onboarding) { %>
+      <div class="brand" style="text-align:center; margin-bottom:1.25rem">
+        <strong style="font-size:1.15rem">📡 Chào mừng bạn</strong>
+        <span class="faint small">Bước duy nhất cần làm: kết nối VPS của bạn</span>
+      </div>
+    <% } else { %>
+      <div class="main-head">
+        <div>
+          <h1>Thêm VPS</h1>
+          <p class="sub">Nhập thông tin SSH nhà cung cấp VPS đã gửi cho bạn.</p>
+        </div>
+        <a class="btn btn-ghost" href="/servers">Quay lại</a>
+      </div>
+    <% } %>
+
+    <% if (error) { %>
+      <div class="alert is-error"><strong>Chưa thêm được VPS</strong><%= error %></div>
+    <% } %>
+
+    <div class="card">
+      <form method="post" action="/servers" id="server-form" data-tabs>
+        <input type="hidden" name="onboarding" value="<%= onboarding ? '1' : '0' %>">
+
+        <div class="field">
+          <label for="host">IP hoặc tên miền của VPS</label>
+          <input class="input input-mono" id="host" name="host" required
+                 placeholder="103.75.184.20" value="<%= form.host || '' %>">
+          <div class="hint">Nhà cung cấp VPS gửi cho bạn cùng với mật khẩu root.</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="username">Tên đăng nhập</label>
+            <input class="input input-mono" id="username" name="username"
+                   value="<%= form.username || 'root' %>">
+          </div>
+          <div class="field" style="flex:0 0 130px">
+            <label for="port">Cổng SSH</label>
+            <input class="input input-mono" id="port" name="port" inputmode="numeric"
+                   value="<%= form.port || 22 %>">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Cách đăng nhập</label>
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab" role="tab" data-tab-name="password"
+                    aria-controls="auth-password"
+                    aria-selected="<%= form.auth_type !== 'private_key' %>">Mật khẩu</button>
+            <button type="button" class="tab" role="tab" data-tab-name="private_key"
+                    aria-controls="auth-key"
+                    aria-selected="<%= form.auth_type === 'private_key' %>">SSH private key</button>
+          </div>
+          <input type="hidden" name="auth_type" data-tab-value value="<%= form.auth_type || 'password' %>">
+
+          <div class="tab-panel" id="auth-password">
+            <input class="input" type="password" name="password" autocomplete="off"
+                   placeholder="Mật khẩu root của VPS">
+            <div class="hint">
+              Chỉ cần nhập một lần. App sẽ tự tạo SSH key riêng rồi dùng key đó cho các lần sau.
+            </div>
+          </div>
+
+          <div class="tab-panel" id="auth-key">
+            <textarea class="input" name="private_key" rows="6" autocomplete="off"
+placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
+..."></textarea>
+            <div class="hint">Dán đầy đủ nội dung file key, gồm cả dòng BEGIN và END. Key không được có passphrase.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="check">
+            <input type="checkbox" name="install_key" value="1"
+                   <%= form.install_key === false ? '' : 'checked' %>>
+            <span>
+              <strong>Tự tạo SSH key riêng cho VPS này</strong>
+              <div class="hint">
+                App tạo một SSH key dùng riêng cho VPS này, tự cài lên máy, kiểm tra đăng nhập được,
+                rồi mới xoá mật khẩu khỏi app. Bạn không cần tự chạy lệnh nào.
+              </div>
+            </span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="name">Tên gợi nhớ <span class="faint">(không bắt buộc)</span></label>
+          <input class="input" id="name" name="name" placeholder="VPS chính"
+                 value="<%= form.name || '' %>">
+        </div>
+
+        <div id="test-result"></div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Kết nối &amp; Chuẩn bị VPS</button>
+          <button type="button" class="btn" data-test-connection>Kiểm tra kết nối</button>
+        </div>
+
+        <p class="small faint" style="margin:0.85rem 0 0">
+          Sau khi bấm, app sẽ tự kiểm tra và cài mọi thứ cần thiết trên VPS:
+          FFmpeg, thư mục lưu video, đồng bộ giờ và kết nối tới Facebook.
+        </p>
+      </form>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

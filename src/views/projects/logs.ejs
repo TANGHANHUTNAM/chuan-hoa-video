@@ -1,0 +1,49 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Log · <%= destination.name %></h1>
+        <p class="sub">
+          <a href="/projects/<%= project.id %>"><%= project.name %></a>
+          · <span class="status is-<%= destination.tone %>">
+              <span class="dot is-<%= destination.tone %>"></span><%= destination.statusLabel %>
+            </span>
+        </p>
+      </div>
+      <div class="btn-row">
+        <a class="btn" href="/lives/<%= destination.id %>/logs">Tải lại</a>
+        <a class="btn btn-ghost" href="/projects/<%= project.id %>">Quay lại</a>
+      </div>
+    </div>
+
+    <% if (logs.problem) { %>
+      <div class="alert is-error">
+        <strong><%= logs.problem.title %></strong>
+        <div class="small"><%= logs.problem.message %></div>
+        <% if (logs.problem.action === 'reinstall-ffmpeg' && project.server) { %>
+          <form method="post" action="/servers/<%= project.serverId %>/reinstall-ffmpeg" style="margin-top:0.6rem">
+            <button type="submit" class="btn btn-sm">Cài lại FFmpeg</button>
+          </form>
+        <% } else if (logs.problem.action === 'provision' && project.server) { %>
+          <form method="post" action="/servers/<%= project.serverId %>/provision" style="margin-top:0.6rem">
+            <button type="submit" class="btn btn-sm">Kiểm tra lại VPS</button>
+          </form>
+        <% } %>
+      </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-head">
+        <h2><%= logs.lines %> dòng gần nhất</h2>
+        <span class="card-title-note">Stream key đã được che</span>
+      </div>
+      <pre class="log-view"><%= logs.text %></pre>
+    </div>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

@@ -1,0 +1,23 @@
+-- How a vertical video should be fitted into the frame sent to Facebook.
+--
+-- Measured on the user's live stream: the app sends 1080x1920 with SAR 1:1 and
+-- DAR 9:16, correctly, all the way into the FLV. Facebook still places it in a 16:9
+-- canvas and stretches it — which distorts the picture AND blurs it, because 1080
+-- pixels of width are being interpolated up to 1920.
+--
+-- Nothing on this side can tell Facebook not to. What this side CAN do is hand
+-- Facebook a frame that is already 16:9, leaving nothing to stretch:
+--
+--   keep  no change; the file stays vertical (right for videos that are already
+--         landscape, and for anyone who has got vertical working on Facebook)
+--   pad   the picture is centred in 1920x1080 with black bars either side
+--   blur  the bars are a zoomed, blurred copy of the picture instead of black
+--
+-- Both fitted modes make the real picture 607x1080 inside 1920x1080 for a 1080x1920
+-- source. Counter-intuitively that is SHARPER than today at the same 4500 kbps,
+-- because the encoder is carrying a third as many pixels, and the bars cost almost
+-- nothing (flat black, or heavily blurred, both compress to very little).
+--
+-- Per video rather than global: the user has both vertical and horizontal footage
+-- depending on the session, and a horizontal video must not be padded.
+ALTER TABLE videos ADD COLUMN frame_fit TEXT NOT NULL DEFAULT 'keep';

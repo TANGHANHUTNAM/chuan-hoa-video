@@ -1,0 +1,61 @@
+<%- include('../partials/head', { title: title }) %>
+
+<div class="shell">
+  <%- include('../partials/nav', { nav: nav }) %>
+
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>VPS</h1>
+        <p class="sub">Các máy chủ đang chạy FFmpeg cho bạn.</p>
+      </div>
+      <a class="btn btn-primary" href="/servers/new">+ Thêm VPS</a>
+    </div>
+
+    <% if (!servers.length) { %>
+      <div class="card empty">
+        <h3>Chưa có VPS nào</h3>
+        <p class="muted">Thêm một VPS Ubuntu để bắt đầu. App sẽ tự cài mọi thứ cần thiết.</p>
+        <a class="btn btn-primary" href="/servers/new">+ Thêm VPS</a>
+      </div>
+    <% } else { %>
+      <div class="grid grid-cards">
+        <% servers.forEach((server) => { %>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 style="margin-bottom:0.1rem"><%= server.name %></h3>
+                <div class="tiny mono faint"><%= server.host %>:<%= server.port %></div>
+              </div>
+              <% if (server.setupState === 'ready') { %>
+                <span class="status is-ok"><span class="dot is-ok"></span>Sẵn sàng</span>
+              <% } else if (server.setupState === 'provisioning') { %>
+                <span class="status is-warn"><span class="dot is-warn"></span>Đang chuẩn bị</span>
+              <% } else if (server.setupState === 'failed') { %>
+                <span class="status is-error"><span class="dot is-error"></span><%= server.problemCount %> lỗi</span>
+              <% } else { %>
+                <span class="status is-idle"><span class="dot is-idle"></span>Chưa kiểm tra</span>
+              <% } %>
+            </div>
+
+            <%- include('../partials/storage-bar', { disk: server.disk, compact: true }) %>
+
+            <p class="tiny faint" style="margin:0.7rem 0 0">
+              <%= server.osName || 'Chưa rõ hệ điều hành' %>
+              <% if (server.usesAppKey) { %> · SSH key riêng<% } %>
+            </p>
+
+            <div class="btn-row" style="margin-top:0.85rem">
+              <a class="btn btn-sm" href="/servers/<%= server.id %>">Quản lý</a>
+              <% if (server.isReady) { %>
+                <a class="btn btn-sm btn-ghost" href="/videos?server=<%= server.id %>">Video</a>
+              <% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/foot') %>

@@ -151,6 +151,12 @@ Sheet** (Sheet chỉ lưu 4 ký tự cuối của key). Xem [Bảo mật](#bảo
 
 Nút này chỉ thêm, không xoá: thứ nào đã có thì bỏ qua, nên bấm nhiều lần vẫn an toàn.
 
+> **Hai bản trên cùng một máy tính:** cả hai đều mặc định `PORT=3000`, nên chỉ một bản
+> chiếm được cổng. Bản còn lại sẽ báo *"Cổng 3000 đang được một bản khác dùng"* và
+> không mở trình duyệt — vì nếu mở thì bạn đang xem dữ liệu của bản kia mà không biết
+> (đây từng là cái bẫy thật: bấm nút đồng bộ ở bản này rồi đi kiểm kết quả ở bản kia).
+> Muốn chạy song song thì sửa `PORT=3001` trong `.env` của bản thứ hai.
+
 > **Hai máy dùng chung một Sheet thì sao?** Đọc thì không sao. Nhưng cả hai máy đều ghi
 > lên Sheet theo `id`, và id của máy mới đánh số lại từ đầu — nên hai bên sẽ ghi đè lẫn
 > nhau (đo được: bản clone ghi lại 1 dòng Servers + 5 dòng Projects với cột đĩa/ffmpeg

@@ -52,7 +52,23 @@ app.use(
 );
 
 // Health check must answer before auth so Render can probe it (spec section 42).
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+/*
+ * `instance` is a hash of the folder this process was started from — never the path
+ * itself, since /health is unauthenticated.
+ *
+ * It exists because two copies of this app (say a clone next to the original) both
+ * default to PORT=3000, and the launcher treats "port already in use" as "we are
+ * already running, just open the browser". Without a fingerprint that guess is
+ * silently wrong: you double-click one folder and end up looking at the other
+ * folder's data, which is indistinguishable from a sync that did nothing.
+ */
+const INSTANCE_ID = require('node:crypto')
+  .createHash('sha256')
+  .update(path.join(__dirname, '..'))
+  .digest('hex')
+  .slice(0, 12);
+
+app.get('/health', (req, res) => res.json({ status: 'ok', instance: INSTANCE_ID }));
 
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: config.isProduction ? '1h' : 0 }));
 

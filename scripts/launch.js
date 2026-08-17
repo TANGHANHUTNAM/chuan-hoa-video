@@ -46,6 +46,31 @@ function readPort() {
   return Number(process.env.PORT) || 3000;
 }
 
+/**
+ * Fingerprint of this install folder — the same value /health reports, computed the
+ * same way, so the two can be compared without sending a path over HTTP.
+ */
+function instanceId() {
+  return require('node:crypto').createHash('sha256').update(ROOT).digest('hex').slice(0, 12);
+}
+
+/**
+ * Asks whoever holds the port which folder they were started from.
+ *
+ * Returns null when the answer is unusable — an old build with no `instance` field,
+ * or something else entirely on that port. Null means "cannot tell", and the caller
+ * then behaves the way it always did rather than blocking on a guess.
+ */
+async function whoIsOnPort(url) {
+  try {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+    const body = await res.json();
+    return typeof body.instance === 'string' ? body.instance : null;
+  } catch {
+    return null;
+  }
+}
+
 /** True if something is already listening on the port. */
 function portInUse(port) {
   return new Promise((resolve) => {
@@ -139,8 +164,33 @@ async function main() {
   const port = readPort();
   const url = `http://localhost:${port}`;
 
-  // Already running: just bring the window up instead of failing on a port clash.
+  // Already running: bring the window up instead of failing on a port clash — but
+  // only after checking it is THIS folder's app. A second copy of the project (a
+  // clone, a downloaded zip) defaults to the same port, and silently opening the
+  // browser onto the other copy makes its data look like ours: you press "Lấy dữ
+  // liệu từ Sheet về" in one folder and inspect the result in the other.
   if (await portInUse(port)) {
+    const running = await whoIsOnPort(url);
+
+    if (running && running !== instanceId()) {
+      banner([
+        `CỔNG ${port} ĐANG ĐƯỢC MỘT BẢN KHÁC DÙNG`,
+        '',
+        'Có một bản app khác của dự án này đang chạy sẵn ở',
+        `http://localhost:${port} — không phải bản trong thư mục này:`,
+        '',
+        `  ${ROOT}`,
+        '',
+        'Nếu mở trình duyệt bây giờ, bạn sẽ xem dữ liệu của bản kia.',
+        '',
+        'Cách xử lý, chọn một trong hai:',
+        '  1. Tắt bản kia (đóng cửa sổ đen của nó) rồi bấm đôi lại file này',
+        `  2. Mở file .env trong thư mục này, sửa PORT=${port} thành`,
+        `     PORT=${port + 1} để hai bản chạy song song`,
+      ]);
+      return 1;
+    }
+
     say();
     say('  App đang chạy sẵn. Đang mở trình duyệt...');
     say();

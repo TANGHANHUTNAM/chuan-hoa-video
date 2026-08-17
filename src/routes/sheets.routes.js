@@ -27,6 +27,23 @@ router.post('/sheets/pull', async (req, res) => {
   res.redirect(`/dashboard?sync=pulled&applied=${applied}&refused=${refused}`);
 });
 
+/**
+ * Rebuilds local rows FROM the Sheet — for a fresh install, a new machine, or a
+ * rebuilt database.
+ *
+ * Separate from "Đọc lại từ Sheet" because that one only carries a human's edits onto
+ * rows that already exist; it must never resurrect something deleted in the app. This
+ * one is the explicit restore, and it is why copying .env alone left a clone empty.
+ */
+router.post('/sheets/restore', async (req, res) => {
+  const data = await sheets.pull({ force: true });
+  const result = sheetsSync.restoreFromSheet(data);
+  res.redirect(
+    `/dashboard?sync=restored&rows=${result.restored.length}` +
+      `&skipped=${result.skipped.length}&manual=${result.manual.length}`
+  );
+});
+
 /** Sends everything the app has, overwriting the Sheet. The drift repair tool. */
 router.post('/sheets/push-all', async (req, res) => {
   const result = await sheetsSync.bootstrap();

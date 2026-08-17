@@ -30,6 +30,9 @@ const TONES = {
   // should be able to tell "it played the 3 loops I asked for" from "something
   // ended it" at a glance.
   live_finished: 'ok',
+  sheet_restore: 'ok',
+  sheet_restore_manual: 'warn',
+  sheet_restore_skipped: 'warn',
   live_restarted: 'ok',
   server_setup: 'ok',
   server_key_installed: 'ok',
@@ -51,6 +54,9 @@ const LABELS = {
   live_stopped: 'Dừng live',
   live_finished: 'Phát xong',
   sheet_conflict: 'Lệch với Google Sheet',
+  sheet_restore: 'Lấy dữ liệu từ Sheet',
+  sheet_restore_manual: 'Cần tự nhập lại',
+  sheet_restore_skipped: 'Chưa lấy về được',
   live_restarted: 'Khởi động lại live',
   live_failed: 'Không phát được',
   video_uploaded: 'Thêm video',

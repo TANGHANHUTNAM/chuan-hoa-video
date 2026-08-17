@@ -85,7 +85,17 @@ if (sync && sync.enabled) {
       <form method="post" action="/sheets/push-all">
         <button type="submit" class="btn btn-ghost btn-sm">Đẩy toàn bộ lên Sheet</button>
       </form>
+      <form method="post" action="/sheets/restore">
+        <button type="submit" class="btn btn-ghost btn-sm">Lấy dữ liệu từ Sheet về</button>
+      </form>
     </div>
+
+    <p class="small faint" style="margin:0.7rem 0 0">
+      <strong>Lấy dữ liệu từ Sheet về</strong> dùng khi bạn vừa cài lại app trên máy mới:
+      nó dựng lại danh sách VPS, project và playlist từ Sheet. Mật khẩu VPS và Stream key
+      <strong>không</strong> nằm trên Sheet (cố tình như vậy), nên hai thứ đó bạn phải nhập lại.
+      Nút này không xoá gì — thứ nào đã có thì bỏ qua.
+    </p>
 
     <p class="small faint" style="margin:0.7rem 0 0">
       Sửa được trên Sheet: <strong>name</strong>, <strong>note</strong>, và

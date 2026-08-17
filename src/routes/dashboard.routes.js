@@ -19,6 +19,16 @@ function syncNotice(query) {
           `Đã đọc Sheet: áp dụng ${n('applied')} thay đổi` +
           (n('refused') ? `, từ chối ${n('refused')} (xem trang Lịch sử).` : '.'),
       };
+    case 'restored':
+      return {
+        tone: n('rows') ? 'ok' : 'warn',
+        text:
+          `Đã lấy về ${n('rows')} dòng từ Sheet` +
+          (n('skipped') ? `, bỏ qua ${n('skipped')}` : '') +
+          (n('manual')
+            ? `. Còn ${n('manual')} thứ phải tự nhập lại (mật khẩu VPS, Stream key) — xem trang Lịch sử.`
+            : '.'),
+      };
     case 'pushed':
       return { tone: 'ok', text: `Đã xếp ${n('rows')} dòng để ghi lên Sheet.` };
     case 'rebuilt':

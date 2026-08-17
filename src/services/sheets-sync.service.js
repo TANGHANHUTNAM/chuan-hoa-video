@@ -623,6 +623,152 @@ function applyPull(data) {
   return { applied, refused };
 }
 
+/**
+ * Rebuilds local rows from the Sheet — the missing half of "Sheets is where the data
+ * lives".
+ *
+ * applyPull deliberately never inserts: it exists to carry a human's edits back and
+ * must not resurrect something the user deleted in the app. But a fresh install (a
+ * clone, a new machine, a rebuilt database) has nothing for those edits to land on,
+ * and until now the Sheet could be read and still leave the app empty. This is the
+ * explicit, user-triggered restore.
+ *
+ * What it CANNOT do, and why: `live_destinations.encrypted_rtmps_url` is NOT NULL and
+ * the Sheet holds only the last four characters of the stream key. That is not an
+ * oversight to work around — the Apps Script URL is unauthenticated, so anything on
+ * the Sheet is readable by whoever has the link. Destinations are reported for the
+ * user to re-create with their keys rather than invented with a fake one that would
+ * fail confusingly at air time.
+ *
+ * Videos are also left alone: the VPS is the authority on which files exist, and
+ * "Làm mới" already adopts them with real probed metadata. Restoring a video row from
+ * the Sheet would happily point at a file somebody deleted months ago.
+ *
+ * Idempotent — existing ids are skipped, so it is safe to press twice, and pressing it
+ * again after a scan is how the playlist finishes filling in.
+ */
+function restoreFromSheet(data) {
+  if (!data) throw new AppError('Chưa đọc được dữ liệu từ Sheet.', 400);
+
+  const restored = [];
+  const skipped = [];
+  const manual = [];
+
+  const num = (v) => (v === '' || v == null ? null : Number(v));
+  const str = (v) => (v == null ? '' : String(v).trim());
+
+  // --- VPS: structure only. No password, no SSH key — those live in SQLite alone.
+  for (const row of data.Servers?.rows || []) {
+    const id = num(row.id);
+    if (!id || !str(row.host) || !str(row.username)) continue;
+    if (db.prepare('SELECT 1 FROM servers WHERE id = ?').get(id)) continue;
+
+    db.prepare(
+      `INSERT INTO servers (id, name, host, port, username, auth_type, setup_state, note)
+       VALUES (?, ?, ?, ?, ?, 'password', 'pending', ?)`
+    ).run(
+      id,
+      str(row.name) || str(row.host),
+      str(row.host),
+      num(row.port) || 22,
+      str(row.username),
+      str(row.note) || null
+    );
+    restored.push(`VPS #${id} "${str(row.name)}" (${str(row.host)})`);
+    manual.push(
+      `VPS "${str(row.name)}": mở trang VPS, nhập lại mật khẩu root rồi bấm Kiểm tra lại — ` +
+        `app sẽ tự tạo SSH key mới. Mật khẩu không nằm trên Sheet.`
+    );
+  }
+
+  // --- Projects
+  for (const row of data.Projects?.rows || []) {
+    const id = num(row.id);
+    const serverId = num(row.server_id);
+    if (!id || !serverId || !str(row.name)) continue;
+    if (db.prepare('SELECT 1 FROM projects WHERE id = ?').get(id)) continue;
+    if (!db.prepare('SELECT 1 FROM servers WHERE id = ?').get(serverId)) {
+      skipped.push(`Project #${id} "${str(row.name)}": chưa có VPS #${serverId}`);
+      continue;
+    }
+    db.prepare('INSERT INTO projects (id, server_id, name, note) VALUES (?, ?, ?, ?)')
+      .run(id, serverId, str(row.name), str(row.note) || null);
+    restored.push(`Project #${id} "${str(row.name)}"`);
+  }
+
+  // --- Playlist, matched by video NAME.
+  //
+  // Not by the Sheet's video_id: videos come back through "Làm mới", which mints new
+  // ids from the files actually on the VPS. The name is what survives both sides.
+  for (const row of data.Playlist?.rows || []) {
+    const projectId = num(row.project_id);
+    const name = str(row.video_name);
+    if (!projectId || !name) continue;
+    if (!db.prepare('SELECT 1 FROM projects WHERE id = ?').get(projectId)) continue;
+
+    const video = db
+      .prepare('SELECT id FROM videos WHERE original_name = ? AND server_id = (SELECT server_id FROM projects WHERE id = ?)')
+      .get(name, projectId);
+    if (!video) {
+      skipped.push(`Danh sách phát project #${projectId}: chưa có video "${name}" — bấm Làm mới ở trang Video rồi lấy lại lần nữa`);
+      continue;
+    }
+    const already = db
+      .prepare('SELECT 1 FROM project_videos WHERE project_id = ? AND video_id = ?')
+      .get(projectId, video.id);
+    if (already) continue;
+
+    db.prepare('INSERT INTO project_videos (project_id, video_id, position) VALUES (?, ?, ?)')
+      .run(projectId, video.id, num(row.position) || 0);
+    // projects.video_id is the legacy "first video" pointer the unit form still reads.
+    db.prepare(
+      `UPDATE projects SET video_id = (
+         SELECT video_id FROM project_videos WHERE project_id = ? ORDER BY position, id LIMIT 1
+       ) WHERE id = ?`
+    ).run(projectId, projectId);
+    restored.push(`Danh sách phát project #${projectId}: thêm "${name}"`);
+  }
+
+  // --- Destinations: report, never invent.
+  for (const row of data.Destinations?.rows || []) {
+    const id = num(row.id);
+    if (!id) continue;
+    if (db.prepare('SELECT 1 FROM live_destinations WHERE id = ?').get(id)) continue;
+    manual.push(
+      `Điểm phát "${str(row.name)}" (project #${num(row.project_id)}, key …${str(row.key_masked).replace(/^…/, '')}` +
+        `${str(row.loop) ? `, ${str(row.loop)}` : ''}): tạo lại và dán Stream key. ` +
+        `Sheet chỉ lưu 4 ký tự cuối nên app không thể tự dựng lại.`
+    );
+  }
+
+  // Written to History, not only returned: the redirect can carry counts but not the
+  // list, and "what you still have to type in yourself" is the part the user needs to
+  // be able to read again later.
+  for (const line of manual) {
+    db.prepare(
+      `INSERT INTO activity_logs (type, message, entity_type, entity_id)
+       VALUES ('sheet_restore_manual', ?, NULL, NULL)`
+    ).run(line.slice(0, 500));
+  }
+  for (const line of skipped) {
+    db.prepare(
+      `INSERT INTO activity_logs (type, message, entity_type, entity_id)
+       VALUES ('sheet_restore_skipped', ?, NULL, NULL)`
+    ).run(line.slice(0, 500));
+  }
+  if (restored.length) {
+    db.prepare(
+      `INSERT INTO activity_logs (type, message, entity_type, entity_id)
+       VALUES ('sheet_restore', ?, NULL, NULL)`
+    ).run(`Lấy dữ liệu từ Sheet: dựng lại ${restored.length} dòng`.slice(0, 500));
+  }
+  logger.info(
+    `Sheet restore: ${restored.length} restored, ${skipped.length} skipped, ${manual.length} manual`
+  );
+
+  return { restored, skipped, manual };
+}
+
 /** Pull then apply. Used by the timer, the activity hook and the manual button. */
 async function pullAndApply(options = {}) {
   const data = await sheets.pull(options);
@@ -641,6 +787,7 @@ module.exports = {
   bootstrap,
   applyPull,
   pullAndApply,
+  restoreFromSheet,
   snapshotGet,
   snapshotForget,
   snapshotMerge,

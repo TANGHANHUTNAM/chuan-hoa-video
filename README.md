@@ -120,6 +120,38 @@ git status --short
 
 Không được thấy `.env` hay `data/` trong danh sách.
 
+### Clone về máy khác thì có sẵn dữ liệu không
+
+Không. Repo chỉ có **code**; dữ liệu nằm trong `data/app.db` và file đó bị `.gitignore`
+chặn (nó chứa mật khẩu VPS và Stream key đã mã hoá). Sau khi clone:
+
+```bash
+npm install && npm run setup && npm start
+```
+
+rồi copy `.env` cũ vào — app mở lên nhưng danh sách VPS / project / video **trống**.
+
+Muốn dựng lại: bấm **Lấy dữ liệu từ Sheet về** trong thẻ Google Sheet ở trang Tổng quan.
+Nó lấy lại **VPS, project và danh sách phát** từ Sheet. Thứ tự đúng là:
+
+1. Bấm **Lấy dữ liệu từ Sheet về** → có VPS và project
+2. Vào trang VPS, nhập lại mật khẩu root → bấm **Kiểm tra lại** (app tự tạo SSH key mới)
+3. Vào trang Video, bấm **Làm mới** → app nhận lại các file video đang có trên VPS
+4. Bấm **Lấy dữ liệu từ Sheet về** lần nữa → danh sách phát khớp lại theo tên video
+5. Tạo lại điểm phát và dán Stream key
+
+Bước 2 và 5 phải làm tay vì **mật khẩu VPS và Stream key không bao giờ được ghi lên
+Sheet** (Sheet chỉ lưu 4 ký tự cuối của key). Xem [Bảo mật](#bảo-mật).
+
+Nút này chỉ thêm, không xoá: thứ nào đã có thì bỏ qua, nên bấm nhiều lần vẫn an toàn.
+
+> **Hai máy dùng chung một Sheet thì sao?** Đọc thì không sao. Nhưng cả hai máy đều ghi
+> lên Sheet theo `id`, và id của máy mới đánh số lại từ đầu — nên hai bên sẽ ghi đè lẫn
+> nhau (đo được: bản clone ghi lại 1 dòng Servers + 5 dòng Projects với cột đĩa/ffmpeg
+> để trống). Không mất dòng nào, nhưng Sheet sẽ nhảy qua nhảy lại. Dùng chung `.env`
+> khi **chuyển sang máy khác** thì hợp lý; nếu hai người dùng song song, mỗi người nên
+> có Sheet + Apps Script riêng.
+
 ---
 
 ## Deploy lên Render
@@ -381,6 +413,18 @@ Cách vận hành:
   dung lượng / watcher tự cứu vẫn chạy** — chúng chỉ cần SSH tới VPS của bạn.
 - Đừng chia sẻ Sheet: tab `Servers` có IP và tên đăng nhập VPS, và Google lưu lịch sử
   sửa đổi vĩnh viễn.
+
+Bốn nút trong thẻ Google Sheet ở trang Tổng quan:
+
+| Nút | Chiều | Làm gì |
+| --- | --- | --- |
+| **Đọc lại từ Sheet** | Sheet → app | Áp dụng `name` / `note` / `position` bạn vừa sửa tay. Không tạo, không xoá dòng nào. |
+| **Đẩy ngay** | app → Sheet | Gửi hàng đợi hiện tại thay vì chờ tới nhịp 5 phút. |
+| **Đẩy toàn bộ lên Sheet** | app → Sheet | Ghi lại mọi thứ app đang có. Dùng khi Sheet bị lệch. |
+| **Lấy dữ liệu từ Sheet về** | Sheet → app | **Dựng lại** VPS, project, danh sách phát khi máy mới / DB mới. Xem [Clone về máy khác](#clone-về-máy-khác-thì-có-sẵn-dữ-liệu-không). |
+
+Hai nút cuối nghe giống nhau nhưng ngược chiều: *Đẩy toàn bộ* sửa **Sheet**, *Lấy dữ
+liệu về* sửa **app**.
 
 ---
 

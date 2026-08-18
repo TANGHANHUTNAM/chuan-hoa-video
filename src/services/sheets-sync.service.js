@@ -375,6 +375,21 @@ function reconcile({ includeTelemetry = false } = {}) {
   return { queued, removed };
 }
 
+/**
+ * How many rows this install would put on the Sheet.
+ *
+ * Zero means this database owns nothing yet — a fresh clone, or a rebuilt file. Such
+ * an install is a restore TARGET and must never be allowed to overwrite the Sheet,
+ * which at that moment is the only copy of the catalogue.
+ */
+function catalogueRowCount() {
+  let total = 0;
+  for (const mapper of Object.values(MAPPERS)) {
+    total += db.prepare(`SELECT COUNT(*) AS n FROM ${mapper.table}`).get().n;
+  }
+  return total;
+}
+
 /** Queues one entity immediately, for the rare case that cannot wait a cycle. */
 function push(tab, id, { isNew = false } = {}) {
   if (!sheets.enabled()) return;
@@ -436,6 +451,23 @@ async function bootstrap({ reset = false } = {}) {
   }
 
   if (reset) {
+    /*
+     * Never clear the Sheet when there is nothing to put back.
+     *
+     * `reset` wipes every tab, and the rows are only restored by the queue built
+     * below. With an empty catalogue that queue is empty too, so the sequence reads
+     * "delete everything, write nothing" — which is exactly what happened once: a
+     * fresh clone with the same .env reset the Sheet it had come to read from.
+     * Refusing costs nothing; there is no case where emptying the Sheet from an
+     * empty database is the intent.
+     */
+    if (catalogueRowCount() === 0) {
+      throw new AppError(
+        'Máy này chưa có dữ liệu nào, nên xoá và dựng lại sẽ làm trống Sheet. ' +
+          'Hãy dùng "Lấy dữ liệu từ Sheet về" để lấy dữ liệu xuống trước.',
+        400
+      );
+    }
     // Clears the tabs and rewrites the header row.
     await sheets.call('reset');
     sheets.setState('history_cursor', 0);
@@ -829,6 +861,74 @@ function restoreFromSheet(data) {
     restored.push(`Project #${id} "${str(row.name)}"`);
   }
 
+  /*
+   * --- Videos: the VPS says which files EXIST, the Sheet says what they are CALLED.
+   *
+   * Video rows are still never created here — "Làm mới" adopts them from the VPS with
+   * real probed metadata, and inventing one would point at a file somebody deleted
+   * months ago. But the VPS only knows a video as `<uuid>.mp4`, because that is how
+   * this app names what it uploads. A machine that scans the VPS therefore adopted a
+   * video literally called "1e3129d3-3dd6-405a-813f-9a3b5a6342bf.mp4" under a brand
+   * new uuid, the playlist below could not match it by name, and the user opened a
+   * project the Sheet says has a video and the app showed as empty.
+   *
+   * adoptVideo now keeps the uuid that is already in the filename, so new scans line
+   * up by themselves. This repairs the installs that scanned before that, matching on
+   * remote_path — the absolute path on the VPS, identical on every machine and the
+   * one thing neither side can rename. Deleting and re-scanning would NOT be a
+   * substitute: removing a video here runs `rm -f` on the VPS and would destroy the
+   * file itself.
+   *
+   * Only uuid and name are touched. Size, codec, compliance and the rest are measured
+   * from the real file and must never be overwritten by a spreadsheet.
+   */
+  const looksLikeUuidFilename = (n) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9]+$/i.test(n);
+
+  /*
+   * One Sheet row per file, preferring the one that carries a real name.
+   *
+   * A machine that scanned before the fix pushed its own row for the same file, named
+   * after the uuid on disk. Two rows, same remote_path — and a name that merely
+   * repeats the filename tells us nothing, so it never wins.
+   */
+  const videoBySheetPath = new Map();
+  for (const row of data.Videos?.rows || []) {
+    const path = str(row.remote_path);
+    const name = str(row.name);
+    if (!path || !name || !str(row.uuid)) continue;
+    const current = videoBySheetPath.get(path);
+    if (!current || (looksLikeUuidFilename(current.name) && !looksLikeUuidFilename(name))) {
+      videoBySheetPath.set(path, { uuid: str(row.uuid), name });
+    }
+  }
+
+  for (const [path, want] of videoBySheetPath) {
+    const local = db
+      .prepare('SELECT id, uuid, original_name FROM videos WHERE remote_path = ?')
+      .get(path);
+    if (!local) continue; // not scanned yet, or the file is gone from the VPS
+
+    const fields = [];
+    const values = [];
+
+    // Taking the Sheet's uuid is what makes this row the same video everywhere. Only
+    // when it is free: a clash means another local row already holds that identity.
+    if (local.uuid !== want.uuid && !has('videos', 'uuid', want.uuid)) {
+      fields.push('uuid = ?');
+      values.push(want.uuid);
+    }
+    if (local.original_name !== want.name) {
+      fields.push('original_name = ?');
+      values.push(want.name.slice(0, 200));
+    }
+    if (!fields.length) continue;
+
+    db.prepare(`UPDATE videos SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(...values, local.id);
+    restored.push(`Video #${local.id}: lấy lại tên "${want.name}"`);
+  }
+
   // --- Playlist, matched by video NAME.
   //
   // Not by the Sheet's video_id: videos come back through "Làm mới", which mints new
@@ -982,6 +1082,7 @@ async function pullAndApply(options = {}) {
 
 module.exports = {
   MAPPERS,
+  catalogueRowCount,
   HUMAN_OWNED,
   TELEMETRY_FIELDS,
   reconcile,

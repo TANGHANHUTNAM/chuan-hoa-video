@@ -1542,8 +1542,40 @@ async function scanRemoteVideos(server) {
  * over it again — while still minting an internal uuid for the thumbnail and
  * progress paths, which must stay predictable.
  */
+/**
+ * A file this app put on the VPS is already named with the uuid that identifies it.
+ *
+ * Matches the naming scheme used for uploads and imports, so anything named this way
+ * came from an install of this app rather than from a human copying a file in.
+ */
+const UUID_FILENAME = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[A-Za-z0-9]+$/i;
+
+/**
+ * The identity to adopt a scanned file under.
+ *
+ * Minting a fresh uuid for every scanned file is right when a human copied a video in
+ * by hand, and wrong when the file is one this app already knows. On a machine
+ * restoring from the Sheet, every video on the VPS is named `<uuid>.mp4` from the
+ * install that uploaded it — so a fresh uuid threw away the only link back to that
+ * video's real name and its place in a playlist. What the user saw: a project that
+ * lists a video on the Sheet but shows an empty playlist in the app, and a video
+ * called "1e3129d3-3dd6-405a-813f-9a3b5a6342bf.mp4". Worse, the invented uuid was
+ * absent from the Sheet, so the next pull pushed it up as a NEW row and the Videos
+ * tab ended up with two rows per file.
+ *
+ * Reused only when free: a collision means this database already holds that video,
+ * and the file being adopted has to be something else.
+ */
+function adoptionUuid(name) {
+  const match = UUID_FILENAME.exec(String(name || '').trim());
+  if (!match) return crypto.randomUUID();
+  const fromName = match[1].toLowerCase();
+  const taken = db.prepare('SELECT 1 FROM videos WHERE uuid = ?').get(fromName);
+  return taken ? crypto.randomUUID() : fromName;
+}
+
 async function adoptVideo(server, entry) {
-  const uuid = crypto.randomUUID();
+  const uuid = adoptionUuid(entry.name);
   const info = db
     .prepare(
       `INSERT INTO videos (server_id, uuid, original_name, remote_path, size_bytes,

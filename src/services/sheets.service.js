@@ -621,6 +621,29 @@ async function rebuildIfKeySchemeChanged() {
   if (!enabled()) return;
   if (!getState('key_scheme_pending')) return;
 
+  /*
+   * An empty catalogue is a restore TARGET, never a source of truth.
+   *
+   * This guard is the whole lesson of a real incident. A freshly cloned install
+   * started with the same .env, applied migration 015, saw this flag, and called
+   * bootstrap({reset:true}) — clearing every tab and then writing its own zero rows.
+   * The Sheet, which was the only copy of the catalogue as far as that machine was
+   * concerned, was emptied by the machine that had come to READ it. Worse, the
+   * install that owned the data still held a full sheet_snapshot, so its next
+   * reconcile saw no difference and never pushed anything back.
+   *
+   * Rebuilding means "rewrite the Sheet from SQLite". With nothing in SQLite there is
+   * nothing to rewrite, and this flag belongs to whichever install actually holds the
+   * data. Clear it and let auto-restore pull the catalogue down instead.
+   */
+  if (sync().catalogueRowCount() === 0) {
+    setState('key_scheme_pending', '');
+    logger.info(
+      'Sheet rebuild skipped: this database is empty, so the Sheet is the copy that matters'
+    );
+    return;
+  }
+
   logger.warn('Sheet row key changed to uuid — rebuilding the Sheet once');
   const result = await sync().bootstrap({ reset: true });
   setState('key_scheme_pending', '');

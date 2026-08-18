@@ -5,11 +5,14 @@ dist/
 # it does not belong in version control.
 runtime/
 
-# Holds APP_ENCRYPTION_KEY, which decrypts every stored SSH credential and
-# stream key. Never commit, never share.
+# Holds APP_ENCRYPTION_KEY, which is the only thing that can read the encrypted SSH
+# credentials and stream keys on the Sheet. Whoever holds this file has root on your
+# VPS and can take over your live streams: hand it to a teammate deliberately, never
+# commit it.
+# A pattern rather than a list — .env.development and .env.test used to slip through.
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # SQLite database: SSH private keys and Facebook stream keys live here.
 data/

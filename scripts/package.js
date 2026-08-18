@@ -93,15 +93,10 @@ const SECRET_PATTERNS = [
  * Reads the real secrets off this machine so we can check for their literal
  * values. Exact comparison, so no false positives and no missed leaks.
  */
-// Published in the spec as the starting password, so it is documentation rather
-// than a secret. Finding it in source is expected; still using it is worth saying.
-const DOCUMENTED_DEFAULTS = new Set(['drnatro123123!']);
-
 function realSecretValues() {
   const values = [];
-  const warnings = [];
   const envPath = path.join(ROOT, '.env');
-  if (!fs.existsSync(envPath)) return { values, warnings };
+  if (!fs.existsSync(envPath)) return values;
 
   const env = fs.readFileSync(envPath, 'utf8');
   // SHEETS_TOKEN is the ONLY thing guarding an unauthenticated Apps Script URL, and
@@ -119,16 +114,9 @@ function realSecretValues() {
     const value = match && match[1].trim();
     if (!value || value.length < 8 || /^0+$/.test(value)) continue;
 
-    if (DOCUMENTED_DEFAULTS.has(value)) {
-      warnings.push(
-        `${key} vẫn là mật khẩu mặc định trong spec — ai đọc spec cũng biết. ` +
-          `Nên đổi trước khi dùng thật.`
-      );
-      continue;
-    }
     values.push({ name: `giá trị ${key} thật`, value });
   }
-  return { values, warnings };
+  return values;
 }
 
 /**
@@ -192,7 +180,7 @@ function copyTree(from, to, report, relDir = '', verbatim = false) {
  */
 function auditStage() {
   const findings = [];
-  const { values: secrets, warnings } = realSecretValues();
+  const secrets = realSecretValues();
   const TEXT = /\.(js|json|ejs|css|md|sql|txt|yaml|yml|example|gitignore)$/i;
 
   const walk = (dir) => {
@@ -233,7 +221,7 @@ function auditStage() {
   };
 
   walk(STAGE);
-  return { findings, warnings, checkedAgainst: secrets.length };
+  return { findings, checkedAgainst: secrets.length };
 }
 
 /**
@@ -462,7 +450,7 @@ function main() {
   report.files.push('BAT-DAU-TU-DAY.txt');
 
   // Verify the intent held before producing anything shippable.
-  const { findings, warnings, checkedAgainst } = auditStage();
+  const { findings, checkedAgainst } = auditStage();
   if (findings.length) {
     console.error('  DỪNG LẠI — phát hiện dữ liệu bí mật trong bản đóng gói:\n');
     for (const f of findings) console.error(`    ✕ ${f}`);
@@ -485,7 +473,6 @@ function main() {
     `  Kiểm tra bí mật: sạch ` +
       `(đối chiếu với ${checkedAgainst} giá trị thật trong .env của bạn)`
   );
-  for (const w of warnings) console.log(`  Lưu ý: ${w}`);
   console.log('');
 
   if (tool) {

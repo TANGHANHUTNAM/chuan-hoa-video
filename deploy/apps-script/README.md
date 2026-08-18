@@ -33,6 +33,16 @@ var TOKEN = 'DOI_CHUOI_NAY_THANH_TOKEN_CUA_BAN';
 
 bằng chuỗi vừa sinh. **Giữ lại chuỗi này**, bước 5 cần dùng.
 
+> **Cách nhanh hơn cho những lần sau.** Khi `.env` đã có `SHEETS_TOKEN`, chạy:
+>
+> ```bash
+> npm run sheets-script
+> ```
+>
+> Lệnh này ghi ra `deploy/apps-script/Code-DAN-VAO-SHEET.gs` — bản `Code.gs` mới nhất đã
+> điền sẵn token của bạn. Copy tất cả, dán đè vào Apps Script, khỏi phải tự sửa một dòng
+> nằm giữa 400 dòng. File đó bị `.gitignore` chặn và không nằm trong bản đóng gói.
+
 > Token quan trọng: URL của web app ai có cũng gọi được, nên token là thứ duy
 > nhất ngăn người khác đọc và ghi dữ liệu của bạn.
 
@@ -87,10 +97,23 @@ Khởi động lại app (đóng cửa sổ đen rồi bấm đôi `Bat dau mo a
 Phải **Deploy → Manage deployments → bút chì → Version: New version → Deploy**.
 Chỉ bấm Save trong editor thì URL vẫn chạy code cũ.
 
-> **Có thay đổi mới, deploy lại khi nào rảnh.** Tab `Destinations` được thêm hai cột
-> `loop` và `planned_end` (cài đặt vòng lặp và giờ dự kiến kết thúc). Không deploy lại
-> cũng **không sao** — script chỉ ghi những cột có trong hàng tiêu đề của nó, nên hai
-> cột mới đơn giản là chưa xuất hiện; mọi thứ khác chạy y như cũ.
+> **Lần này thì BẮT BUỘC deploy lại.** Khác với những lần trước, bản này đổi **cột dùng
+> làm khoá** của mỗi dòng: từ `id` sang `uuid`. Sheet cũ chưa có cột `uuid` nên script cũ
+> và app mới không hiểu nhau — không cập nhật thì đồng bộ sẽ hỏng.
+>
+> Thứ tự đúng:
+>
+> 1. mở app một lần **trước khi** đụng vào Apps Script, để mọi thứ bạn vừa sửa tay trên
+>    Sheet kịp được đọc về SQLite;
+> 2. `npm run sheets-script`, dán vào Apps Script, **Deploy → Manage deployments → bút
+>    chì → New version → Deploy** (sửa bản đang có, đừng tạo bản mới — URL trong `.env`
+>    phải giữ nguyên);
+> 3. mở app lại. App tự nhận ra khoá đã đổi, **xoá sạch các tab rồi ghi lại toàn bộ** từ
+>    SQLite đúng một lần. Không mất gì: tên và ghi chú đều đã nằm trong SQLite.
+>
+> Vì sao phải đổi: `id` được đánh số riêng theo từng database, nên `Projects#3` của máy A
+> và `Projects#3` của máy B là **cùng một dòng Sheet** — hai máy ghi đè nhau vô tận. Với
+> `uuid` thì nhiều người dùng chung một Sheet mới an toàn.
 
 ---
 
@@ -123,13 +146,24 @@ và ngưng đồng bộ định kỳ ở mốc 70%, có cảnh báo trên Tổng
 Hạn mức reset lúc nửa đêm Los Angeles — với bạn là **14:00 giờ Việt Nam**, không
 phải nửa đêm.
 
-## Những gì KHÔNG lên Sheet
+## Secret trên Sheet: đã mã hoá, không phải chữ thường
 
-Vì URL web app không xác thực, các thứ sau luôn ở lại máy, mã hoá AES-256-GCM:
+Mật khẩu SSH, SSH private key và URL RTMPS kèm Stream key **có** lên Sheet — ở các cột
+`enc_password`, `enc_private_key`, `enc_rtmps_url` — nhưng dưới đúng dạng AES-256-GCM
+`v1:<iv>:<ct>:<tag>` như trong SQLite. App không giải mã trước khi gửi.
 
-- mật khẩu SSH và SSH private key của VPS
-- Facebook stream key (Sheet chỉ hiện 4 ký tự cuối)
-- mật khẩu đăng nhập app
+Đó là thứ khiến một máy mới chỉ cần file `.env` là dựng lại được toàn bộ. Khoá giải mã
+`APP_ENCRYPTION_KEY` nằm duy nhất trong `.env` và **không bao giờ** được gửi lên đây, nên
+với người mở Sheet mà không có `.env` — kể cả Google, kể cả lịch sử sửa đổi lưu vĩnh viễn
+— chúng chỉ là chuỗi vô nghĩa.
+
+Vẫn KHÔNG lên Sheet:
+
+- mật khẩu đăng nhập app (bcrypt, chỉ nằm trong SQLite)
+- `APP_ENCRYPTION_KEY` và mọi thứ khác trong `.env`
+
+Vẫn để lộ ở dạng chữ thường trên tab `Servers`: **IP và tên đăng nhập VPS**. Đó là lý do
+vẫn không nên chia sẻ Sheet cho người ngoài.
 
 ## Tình trạng hiện tại
 
@@ -140,7 +174,9 @@ Vì URL web app không xác thực, các thứ sau luôn ở lại máy, mã ho�
 - sửa trên Sheet **không** bị app ghi đè; sửa trong app **vẫn** lên được Sheet
 - xoá dòng trên Sheet thì app từ chối và trả dòng đó về, ghi cảnh báo ở Lịch sử
 - token chặn truy cập lạ
-- stream key **không** lên Sheet (chỉ 4 ký tự cuối), không có `rtmps://`
+- stream key lên Sheet ở dạng **đã mã hoá**; cột đọc được cho người chỉ có 4 ký tự cuối
+- máy mới chỉ cần `.env` là tự dựng lại toàn bộ lúc khởi động (VPS kèm đăng nhập, project,
+  danh sách phát, điểm phát kèm stream key)
 - Google sập thì thao tác sửa dữ liệu bị chặn, nhưng **Dừng / Khởi động lại /
   Dọn dung lượng vẫn chạy** (xem mục dưới)
 
@@ -174,12 +210,19 @@ Sửa được đúng ba thứ:
 | `note` | Servers, Videos, Projects, Destinations |
 | `position` | Playlist (đổi thứ tự phát) |
 
+**Đừng sửa `uuid`.** Đây là cột app dùng để nhận ra dòng nào là dòng nào. Sửa nó thì app
+coi như gặp một dòng lạ; xoá nó thì dòng đó bị bỏ qua hoàn toàn.
+
 **Đừng sửa `id`.** Không phải vì khó, mà vì `id` không phải dữ liệu — app dùng nó
 để đặt tên systemd unit (`live-manager-<id>.service`) và file chứa stream key
 (`/etc/live-manager/dest-<id>.env`) trên VPS. Đổi `id` trên Sheet có thể làm app
 mất dấu tiến trình đang phát, tức là mất luôn nút Dừng. Google Sheets cũng không
 có ràng buộc khoá ngoại hay chống trùng như database, và kéo chuột xuống một cột
 số là đủ để đánh số lại cả cột.
+
+**Đừng sửa các cột `enc_*`.** Đó là bản mã hoá của mật khẩu SSH, SSH key và stream key.
+Sai một ký tự là AES-GCM từ chối giải mã cả chuỗi, và máy nào dựng lại từ dòng đó sẽ báo
+lỗi thay vì kết nối được.
 
 Các cột trạng thái (`status`, `uptime`, `throughput`, `recover_count`…) do app sở
 hữu — sửa cũng bị ghi đè ở lần đồng bộ sau.

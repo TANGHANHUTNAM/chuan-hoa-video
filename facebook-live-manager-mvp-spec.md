@@ -174,12 +174,9 @@ Render **không chạy FFmpeg livestream**.
 
 MVP chỉ có **1 tài khoản admin duy nhất**.
 
-Thông tin mặc định:
-
-```text
-Username: drnatro@gmail.com
-Password: drnatro123123!
-```
+Không có thông tin mặc định. `npm run setup` sinh một mật khẩu ngẫu nhiên vào `.env`
+và in ra màn hình; `src/config.js` không còn giá trị dự phòng, và `seedAdmin` từ chối
+tạo tài khoản nếu `ADMIN_EMAIL` hoặc `ADMIN_PASSWORD` còn trống.
 
 ## Yêu cầu bảo mật
 
@@ -192,11 +189,12 @@ Khi app khởi động lần đầu:
 3. insert admin nếu chưa tồn tại;
 4. các lần deploy sau không overwrite password nếu account đã tồn tại.
 
-Environment mặc định khi deploy Render:
+Environment khi deploy Render — cả hai đặt `sync: false` trong `render.yaml`, Render
+hỏi lúc deploy:
 
 ```env
-ADMIN_EMAIL=drnatro@gmail.com
-ADMIN_PASSWORD=drnatro123123!
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
 ```
 
 Session authentication dùng JWT trong cookie:
@@ -1698,8 +1696,8 @@ PORT=3000
 
 DB_PATH=./data/live-manager.db
 
-ADMIN_EMAIL=drnatro@gmail.com
-ADMIN_PASSWORD=drnatro123123!
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=
 
 JWT_SECRET=change-me-to-a-long-random-secret
 APP_ENCRYPTION_KEY=64_HEX_CHARACTERS
@@ -1714,8 +1712,8 @@ Production Render:
 ```env
 NODE_ENV=production
 DB_PATH=/var/data/live-manager.db
-ADMIN_EMAIL=drnatro@gmail.com
-ADMIN_PASSWORD=drnatro123123!
+ADMIN_EMAIL=<đặt trong Render Environment>
+ADMIN_PASSWORD=<đặt trong Render Environment>
 JWT_SECRET=<random>
 APP_ENCRYPTION_KEY=<64 hex>
 STORAGE_RESERVE_PERCENT=10
@@ -2093,7 +2091,7 @@ MVP được xem là hoàn thành khi pass toàn bộ:
 
 ## Auth
 
-- [ ] Login được bằng `drnatro@gmail.com` / `drnatro123123!`.
+- [ ] Login được bằng `ADMIN_EMAIL` / `ADMIN_PASSWORD` mà `npm run setup` sinh ra trong `.env`.
 - [ ] Password trong SQLite là hash, không plaintext.
 - [ ] Không login thì không truy cập dashboard.
 

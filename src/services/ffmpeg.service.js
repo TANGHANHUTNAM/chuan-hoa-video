@@ -84,7 +84,7 @@ function buildUnitFile({
   const endsItself = total != null && (!autoRefresh || total <= refreshWindow);
 
   const ffmpegArgs = [
-    '/usr/bin/ffmpeg',
+    config.remote.ffmpegPath,
     '-hide_banner',
     // Without -nostdin, FFmpeg under systemd can consume stdin and misbehave.
     '-nostdin',

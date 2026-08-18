@@ -351,27 +351,40 @@ async function assertFresh() {
  * one pending write, which is what keeps a burst of user activity from costing a
  * call per keystroke.
  */
+/**
+ * The key the Sheet identifies this row by — uuid everywhere except Meta, which is a
+ * handful of script-owned settings with no table behind it. Must agree with KEY_COL in
+ * deploy/apps-script/Code.gs, or a write would create a second row instead of
+ * updating the one that is there.
+ */
+function rowKey(tab, row) {
+  const value = tab === 'Meta' ? row.id : row.uuid;
+  return value == null || value === '' ? null : String(value);
+}
+
 function queueUpsert(tab, row, snapshotRow = null) {
-  if (!enabled() || !row || row.id == null) return;
+  if (!enabled() || !row) return;
+  const key = rowKey(tab, row);
+  if (key == null) return;
   db.prepare(
     `INSERT OR REPLACE INTO sheet_outbox
        (tab, entity_id, operation, payload, snapshot_payload, attempts, updated_at)
      VALUES (?, ?, 'upsert', ?, ?, 0, CURRENT_TIMESTAMP)`
   ).run(
     tab,
-    Number(row.id),
+    key,
     JSON.stringify(row),
     snapshotRow ? JSON.stringify(snapshotRow) : null
   );
 }
 
-function queueDelete(tab, id) {
-  if (!enabled() || id == null) return;
+function queueDelete(tab, key) {
+  if (!enabled() || key == null || key === '') return;
   db.prepare(
     `INSERT OR REPLACE INTO sheet_outbox
        (tab, entity_id, operation, payload, snapshot_payload, attempts, updated_at)
      VALUES (?, ?, 'delete', NULL, NULL, 0, CURRENT_TIMESTAMP)`
-  ).run(tab, Number(id));
+  ).run(tab, String(key));
 }
 
 function pendingCount() {
@@ -577,11 +590,41 @@ function start() {
   );
 
   // Prime the cache so the first page view is not the one that pays for it, then
-  // send anything that changed while the app was closed.
-  sync()
-    .pullAndApply({ force: true })
+  // send anything that changed while the app was closed. The one-time rebuild goes
+  // first: until it has run, the Sheet has no uuid column and a partial write would
+  // find no row to update and append duplicates instead.
+  rebuildIfKeySchemeChanged()
+    .catch((err) => logger.warn(`Sheet rebuild failed, will retry next start: ${err.message}`))
+    .then(() => sync().pullAndApply({ force: true }))
     .then(() => tick())
     .catch((err) => logger.warn(`Initial Sheets sync failed: ${err.message}`));
+}
+
+/**
+ * Rewrites the whole Sheet once, after the column that identifies a row changed.
+ *
+ * Set by 015_sync_uuid.sql. The existing Sheet is keyed by `id` and has no `uuid`
+ * column at all, so there is no incremental path from one to the other: every row has
+ * to be written again under the new key. bootstrap({reset:true}) clears the tabs,
+ * writes the new headers and sends every row from SQLite.
+ *
+ * Safe to lose nothing by, because SQLite already holds everything the Sheet showed,
+ * names and notes included — those are pulled back into it on every cycle. The one
+ * exception is an edit typed into the Sheet after the app's last successful pull and
+ * before this upgrade; that is why the release notes say to open the app once before
+ * updating the Apps Script.
+ *
+ * Left set if it fails, so a Sheet that was unreachable today is rebuilt tomorrow
+ * rather than quietly skipped.
+ */
+async function rebuildIfKeySchemeChanged() {
+  if (!enabled()) return;
+  if (!getState('key_scheme_pending')) return;
+
+  logger.warn('Sheet row key changed to uuid — rebuilding the Sheet once');
+  const result = await sync().bootstrap({ reset: true });
+  setState('key_scheme_pending', '');
+  logger.info(`Sheet rebuilt under the new key: ${result.queued} rows`);
 }
 
 /**

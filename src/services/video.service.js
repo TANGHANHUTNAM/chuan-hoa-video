@@ -830,7 +830,7 @@ function buildNormalizeArgs({
   reencodeVideo = true,
   scaleTo = null,
   fitPlan = null,
-  ffmpegPath = '/usr/bin/ffmpeg',
+  ffmpegPath = config.remote.ffmpegPath,
   videoEncoder = 'libx264',
 }) {
   const args = [

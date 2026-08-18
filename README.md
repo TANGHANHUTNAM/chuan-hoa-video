@@ -49,8 +49,13 @@ npm install && npm run setup && npm start
 
 Mở http://localhost:3000 và đăng nhập bằng `ADMIN_EMAIL` / `ADMIN_PASSWORD` trong `.env`.
 
-`npm run setup` tạo `.env` với `JWT_SECRET` và `APP_ENCRYPTION_KEY` sinh mới. Lệnh này
-**không ghi đè** `.env` đã có — nên key và mật khẩu hiện tại của bạn được giữ nguyên.
+`npm run setup` tạo `.env` với `JWT_SECRET`, `APP_ENCRYPTION_KEY` và **mật khẩu admin**
+sinh ngẫu nhiên, rồi in mật khẩu đó ra màn hình. Lệnh này **không ghi đè** `.env` đã có —
+nên key và mật khẩu hiện tại của bạn được giữ nguyên.
+
+> Không còn mật khẩu mặc định. `.env.example` nằm trong Git nên bất cứ giá trị nào ghi
+> sẵn ở đó đều là công khai; app từ chối tạo tài khoản admin nếu `ADMIN_EMAIL` hoặc
+> `ADMIN_PASSWORD` còn trống.
 
 > `APP_ENCRYPTION_KEY` phải đúng **64 ký tự hex**. Đổi khoá này sẽ làm mọi mật khẩu SSH
 > và Stream key đã lưu không giải mã được nữa.
@@ -122,47 +127,50 @@ Không được thấy `.env` hay `data/` trong danh sách.
 
 ### Clone về máy khác thì có sẵn dữ liệu không
 
-Không. Repo chỉ có **code**; dữ liệu nằm trong `data/app.db` và file đó bị `.gitignore`
-chặn (nó chứa mật khẩu VPS và Stream key đã mã hoá). Sau khi clone:
+**Có.** Chỉ cần `.env` của bạn. Người nhận clone repo, chép `.env` vào, rồi:
 
 ```bash
-npm install && npm run setup && npm start
+npm install && npm start
 ```
 
-rồi copy `.env` cũ vào — app mở lên nhưng danh sách VPS / project / video **trống**.
+Database trống + `.env` trỏ tới Sheet = app **tự lấy mọi thứ về ngay lúc khởi động**,
+không phải bấm gì:
 
-Muốn dựng lại: bấm **Lấy dữ liệu từ Sheet về**. Nút này nằm ở **hai chỗ**, vì lúc mới cài
-thì trang Tổng quan chưa mở được (chưa có VPS nào, app đẩy thẳng sang màn hình kết nối VPS):
+1. đọc Sheet, dựng lại VPS (kèm mật khẩu / SSH key), project, và điểm phát kèm Stream key;
+2. kiểm tra VPS — vừa xác nhận thông tin đăng nhập chạy được, vừa lấy lại thông số đĩa và ffmpeg;
+3. nhận lại danh sách video đang có trên VPS;
+4. khớp lại danh sách phát (khớp theo **tên video**, nên phải sau bước 3);
+5. hỏi systemd xem điểm phát nào đang chạy thật.
 
-- **Màn hình đầu tiên** (*Chào mừng bạn — kết nối VPS*): hiện sẵn khi máy có `.env` nối
-  với Sheet mà danh mục còn trống. Đây là chỗ bạn sẽ thấy trước.
-- **Trang Tổng quan → thẻ Google Sheet**: dùng cho những lần sau.
+Theo dõi ở trang **Lịch sử**. Không muốn tự động thì đặt `AUTO_RESTORE=0` trong `.env`;
+nút **Lấy dữ liệu từ Sheet về** vẫn còn nguyên để bấm tay.
 
-Nó lấy lại **VPS, project và danh sách phát** từ Sheet. Thứ tự đúng là:
+Vì sao làm được: Sheet giờ lưu cả **bản đã mã hoá** của mật khẩu SSH, SSH private key và
+URL RTMPS kèm Stream key — đúng chuỗi `v1:…` như trong SQLite, app không hề giải mã trước
+khi gửi. `APP_ENCRYPTION_KEY` chỉ nằm trong `.env` và không bao giờ đi lên Sheet, nên
+người mở Sheet mà không có `.env` chỉ thấy chuỗi vô nghĩa.
 
-1. Bấm **Lấy dữ liệu từ Sheet về** → có VPS và project
-2. Vào trang VPS, nhập lại mật khẩu root → bấm **Kiểm tra lại** (app tự tạo SSH key mới)
-3. Vào trang Video, bấm **Làm mới** → app nhận lại các file video đang có trên VPS
-4. Bấm **Lấy dữ liệu từ Sheet về** lần nữa → danh sách phát khớp lại theo tên video
-5. Tạo lại điểm phát và dán Stream key
+> **Đưa `.env` là trao toàn quyền.** Người nhận vào được VPS bằng root và phát live được
+> lên kênh của bạn. Đó đúng là mục đích của tính năng này — chỉ cần bạn biết mình đang
+> đưa cái gì.
 
-Bước 2 và 5 phải làm tay vì **mật khẩu VPS và Stream key không bao giờ được ghi lên
-Sheet** (Sheet chỉ lưu 4 ký tự cuối của key). Xem [Bảo mật](#bảo-mật).
+**Nhiều người dùng chung một Sheet** giờ an toàn. Mỗi dòng có `uuid` riêng và Sheet khoá
+theo `uuid` thay vì theo số thứ tự. Trước đây `Projects#3` của hai máy là **cùng một
+dòng** Sheet, nên hai bên ghi đè nhau ở mọi nhịp đồng bộ và đốt hết hạn mức Apps Script.
 
-Nút này chỉ thêm, không xoá: thứ nào đã có thì bỏ qua, nên bấm nhiều lần vẫn an toàn.
+Hai điều còn lại cần biết:
+
+- Dòng **mới** do máy kia vừa tạo không tự hiện sang — bấm **Lấy dữ liệu từ Sheet về** để nhận.
+- Nếu hai máy cùng tạo dữ liệu mới trước khi kịp đồng bộ thì có thể trùng số hiệu. App
+  phát hiện, **bỏ qua và ghi rõ ở trang Lịch sử** thay vì nối nhầm dòng; xoá một trong
+  hai rồi lấy lại là xong. Số hiệu không đánh lại được vì tên systemd unit và file env
+  trên VPS đặt theo nó (`live-manager-<id>`, `dest-<id>.env`).
 
 > **Hai bản trên cùng một máy tính:** cả hai đều mặc định `PORT=3000`, nên chỉ một bản
 > chiếm được cổng. Bản còn lại sẽ báo *"Cổng 3000 đang được một bản khác dùng"* và
 > không mở trình duyệt — vì nếu mở thì bạn đang xem dữ liệu của bản kia mà không biết
 > (đây từng là cái bẫy thật: bấm nút đồng bộ ở bản này rồi đi kiểm kết quả ở bản kia).
 > Muốn chạy song song thì sửa `PORT=3001` trong `.env` của bản thứ hai.
-
-> **Hai máy dùng chung một Sheet thì sao?** Đọc thì không sao. Nhưng cả hai máy đều ghi
-> lên Sheet theo `id`, và id của máy mới đánh số lại từ đầu — nên hai bên sẽ ghi đè lẫn
-> nhau (đo được: bản clone ghi lại 1 dòng Servers + 5 dòng Projects với cột đĩa/ffmpeg
-> để trống). Không mất dòng nào, nhưng Sheet sẽ nhảy qua nhảy lại. Dùng chung `.env`
-> khi **chuyển sang máy khác** thì hợp lý; nếu hai người dùng song song, mỗi người nên
-> có Sheet + Apps Script riêng.
 
 ---
 
@@ -412,9 +420,15 @@ Hướng dẫn cài: [deploy/apps-script/README.md](deploy/apps-script/README.md
 
 Cách vận hành:
 
-- Sheet là nơi bạn nhìn dữ liệu; SQLite vẫn giữ **secret** (mật khẩu SSH, SSH key,
-  stream key) vì URL webhook của Apps Script không xác thực. Sheet chỉ thấy 4 ký tự
-  cuối của stream key.
+- Sheet là nơi bạn nhìn dữ liệu, và cũng là nơi dữ liệu **sống**: một máy mới chỉ cần
+  `.env` là dựng lại được toàn bộ từ đây.
+- **Secret nằm trên Sheet dưới dạng đã mã hoá.** Mật khẩu SSH, SSH private key và URL
+  RTMPS kèm Stream key đi lên ở đúng dạng `v1:…` như trong SQLite (cột `enc_password`,
+  `enc_private_key`, `enc_rtmps_url`). URL webhook của Apps Script không xác thực và
+  Google lưu lịch sử sửa đổi vĩnh viễn, nên chúng phải không đọc được nếu thiếu
+  `APP_ENCRYPTION_KEY` — thứ chỉ nằm trong `.env` và không bao giờ được gửi đi. Cột
+  `key_masked` vẫn giữ 4 ký tự cuối để bạn phân biệt bằng mắt.
+- Mỗi dòng có cột `uuid` — đây là thứ Sheet dùng để nhận diện dòng. Đừng sửa hay xoá nó.
 - Sửa được trên Sheet: `name`, `note`, và `position` ở tab Playlist. Các cột khác do
   app ghi.
 - App **không** ghi đè thứ bạn sửa trên Sheet, vì nó chỉ gửi cột nào thật sự thay đổi
@@ -423,8 +437,8 @@ Cách vận hành:
   Lịch sử. Một buổi live không được chết vì một dòng bảng tính biến mất.
 - Google sập thì thao tác **sửa dữ liệu** bị chặn, nhưng **Dừng / Khởi động lại / Dọn
   dung lượng / watcher tự cứu vẫn chạy** — chúng chỉ cần SSH tới VPS của bạn.
-- Đừng chia sẻ Sheet: tab `Servers` có IP và tên đăng nhập VPS, và Google lưu lịch sử
-  sửa đổi vĩnh viễn.
+- Đừng chia sẻ Sheet: tuy secret đã mã hoá, tab `Servers` vẫn để lộ IP và tên đăng nhập
+  VPS ở dạng thường, và Google lưu lịch sử sửa đổi vĩnh viễn.
 
 Bốn nút trong thẻ Google Sheet ở trang Tổng quan:
 
@@ -433,7 +447,7 @@ Bốn nút trong thẻ Google Sheet ở trang Tổng quan:
 | **Đọc lại từ Sheet** | Sheet → app | Áp dụng `name` / `note` / `position` bạn vừa sửa tay. Không tạo, không xoá dòng nào. |
 | **Đẩy ngay** | app → Sheet | Gửi hàng đợi hiện tại thay vì chờ tới nhịp 5 phút. |
 | **Đẩy toàn bộ lên Sheet** | app → Sheet | Ghi lại mọi thứ app đang có. Dùng khi Sheet bị lệch. |
-| **Lấy dữ liệu từ Sheet về** | Sheet → app | **Dựng lại** VPS, project, danh sách phát khi máy mới / DB mới. Xem [Clone về máy khác](#clone-về-máy-khác-thì-có-sẵn-dữ-liệu-không). |
+| **Lấy dữ liệu từ Sheet về** | Sheet → app | **Dựng lại** VPS (kèm đăng nhập), project, danh sách phát và điểm phát (kèm Stream key) khi máy mới / DB mới. Máy trống tự chạy cái này lúc khởi động — xem [Clone về máy khác](#clone-về-máy-khác-thì-có-sẵn-dữ-liệu-không). |
 
 Hai nút cuối nghe giống nhau nhưng ngược chiều: *Đẩy toàn bộ* sửa **Sheet**, *Lấy dữ
 liệu về* sửa **app**.
@@ -502,8 +516,14 @@ Tài khoản SSH phải là `root` hoặc có `sudo` (app tự nhận biết).
 
 ## Bảo mật
 
-- Mật khẩu admin: bcrypt (cost 12). JWT trong cookie `HttpOnly`, không dùng localStorage.
-- Mật khẩu SSH, SSH private key, RTMPS URL + Stream key: mã hoá **AES-256-GCM**.
+- Mật khẩu admin: bcrypt (cost 12), sinh ngẫu nhiên lúc `npm run setup` — không có giá
+  trị mặc định trong mã nguồn. JWT trong cookie `HttpOnly`, không dùng localStorage.
+- Mật khẩu SSH, SSH private key, RTMPS URL + Stream key: mã hoá **AES-256-GCM**, và chỉ
+  ở dạng đã mã hoá đó chúng mới rời khỏi máy (lên Google Sheet). Khoá giải mã
+  `APP_ENCRYPTION_KEY` sống duy nhất trong `.env`.
+- **`.env` là chìa khoá của tất cả.** Ai có nó thì đọc được mọi thứ trên Sheet và có
+  quyền root vào VPS của bạn. Đưa nó cho đồng đội là cách chia sẻ dữ liệu; đừng đưa cho
+  ai khác, và đừng bao giờ commit.
 - **Host key pinning (TOFU)**: `ssh2` mặc định chấp nhận mọi host key, nên app tự ghim
   fingerprint lần đầu và từ chối kết nối nếu danh tính VPS đổi.
 - Stream key được che trong UI và trong log (`journalctl`) trước khi trả về trình duyệt.

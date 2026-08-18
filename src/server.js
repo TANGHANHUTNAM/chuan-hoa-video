@@ -123,6 +123,12 @@ require('./services/watcher.service').start();
 // no-op unless SHEETS_ENABLED=1 with a webhook URL and token.
 sheets.start();
 
+// A database with no VPS in it, next to a .env that points at a Sheet, is somebody
+// who just cloned this folder. Pull their whole setup down instead of showing them
+// an empty app and a button they have to know to press. No-op otherwise, and never
+// runs against a database that already has something in it.
+require('./services/auto-restore.service').start();
+
 app.use(notFound);
 app.use(errorHandler);
 

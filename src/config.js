@@ -85,9 +85,18 @@ const config = {
     ffprobePath: (process.env.LOCAL_FFPROBE_PATH || '').trim(),
   },
 
+  /**
+   * No fallback, on purpose.
+   *
+   * These used to default to the owner's real email and password. That put a working
+   * credential in source, and .env.example carried the same pair into git from the
+   * first commit — so anyone who read the repository could log into any install that
+   * had not changed it. `scripts/setup.js` now generates a password into .env, and
+   * `seedAdmin` refuses to create the account when either value is missing.
+   */
   admin: {
-    email: process.env.ADMIN_EMAIL || 'drnatro@gmail.com',
-    password: process.env.ADMIN_PASSWORD || 'drnatro123123!',
+    email: (process.env.ADMIN_EMAIL || '').trim(),
+    password: process.env.ADMIN_PASSWORD || '',
   },
 
   jwtSecret: requireSecret('JWT_SECRET', 'jwt'),
@@ -118,6 +127,15 @@ const config = {
     // Must match TOKEN in deploy/apps-script/Code.gs. The webhook URL is
     // unauthenticated, so this is the only thing guarding it.
     token: (process.env.SHEETS_TOKEN || '').trim(),
+    /**
+     * Pull the whole catalogue down at startup when this machine's database is still
+     * empty, instead of waiting for somebody to find the button.
+     *
+     * This is what makes handing someone your .env enough: they clone, start, and the
+     * app rebuilds itself from the Sheet. Gated on the database being empty so it can
+     * never overwrite an install that is already in use.
+     */
+    autoRestore: process.env.AUTO_RESTORE !== '0',
   },
 
   watcher: {
@@ -143,6 +161,13 @@ const config = {
     // Stream keys live here in root-only files so they stay out of the
     // world-readable systemd unit files.
     secrets: '/etc/live-manager',
+    /**
+     * Absolute, never a bare `ffmpeg`: this path is baked into a systemd unit, and
+     * systemd runs units with a minimal PATH that would not resolve one. The default
+     * is where apt puts it, which is how deploy/vps-install.sh installs it — override
+     * only for a VPS where ffmpeg lives somewhere else.
+     */
+    ffmpegPath: (process.env.REMOTE_FFMPEG_PATH || '').trim() || '/usr/bin/ffmpeg',
   },
 
   facebook: {

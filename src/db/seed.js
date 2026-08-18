@@ -19,6 +19,15 @@ function seedAdmin() {
     return false;
   }
 
+  // Refusing beats seeding a guessable account. config.admin has no fallback any
+  // more, so an empty value here means .env is incomplete rather than defaulted.
+  if (!config.admin.email || !config.admin.password) {
+    throw new Error(
+      'Chưa có ADMIN_EMAIL hoặc ADMIN_PASSWORD trong .env nên không tạo được tài khoản ' +
+        'quản trị. Chạy `npm run setup` để sinh sẵn, hoặc tự điền hai dòng đó rồi khởi động lại.'
+    );
+  }
+
   const hash = bcrypt.hashSync(config.admin.password, 12);
   db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(
     config.admin.email.trim().toLowerCase(),

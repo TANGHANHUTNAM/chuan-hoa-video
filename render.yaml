@@ -32,8 +32,11 @@ services:
         value: /var/data/live-manager.db
 
       # Seeded on first boot only; later deploys never overwrite the account.
+      # Both are sync: false — Render asks for them at deploy time. Neither has a
+      # fallback in src/config.js any more, so the app refuses to seed an admin
+      # account until they are set, rather than creating a guessable one.
       - key: ADMIN_EMAIL
-        value: drnatro@gmail.com
+        sync: false
       - key: ADMIN_PASSWORD
         sync: false
 

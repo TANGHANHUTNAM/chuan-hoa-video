@@ -42,28 +42,39 @@ function main() {
 
   const jwtSecret = crypto.randomBytes(48).toString('hex');
   const encryptionKey = crypto.randomBytes(32).toString('hex'); // 64 hex chars
+  // Generated rather than shipped. .env.example is committed, so any password
+  // written there is public the moment the repository is.
+  const adminPassword = crypto.randomBytes(9).toString('base64url'); // 12 chars
 
   const content = fs
     .readFileSync(EXAMPLE_PATH, 'utf8')
     .replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${jwtSecret}`)
-    .replace(/^APP_ENCRYPTION_KEY=.*$/m, `APP_ENCRYPTION_KEY=${encryptionKey}`);
+    .replace(/^APP_ENCRYPTION_KEY=.*$/m, `APP_ENCRYPTION_KEY=${encryptionKey}`)
+    .replace(/^ADMIN_PASSWORD=.*$/m, `ADMIN_PASSWORD=${adminPassword}`);
 
   // Readable only by the current user where the OS supports it.
   fs.writeFileSync(ENV_PATH, content, { mode: 0o600 });
 
+  // Printed in BOTH branches on purpose. The launcher passes --quiet and then starts
+  // the server itself, so this is the only moment the user is told the password that
+  // was just generated for them — staying silent would open a login screen nobody
+  // can get past. It is also in .env, which is what the last line points at.
+  const email = /^ADMIN_EMAIL=(.*)$/m.exec(content);
+  console.log('\n  Tài khoản đăng nhập vừa tạo:');
+  console.log(`    Email:      ${(email && email[1].trim()) || '(chưa đặt ADMIN_EMAIL)'}`);
+  console.log(`    Mật khẩu:   ${adminPassword}`);
+  console.log('    (cả hai nằm trong .env, đổi lúc nào cũng được trước lần chạy đầu)\n');
+
   // The launcher passes --quiet because it is about to start the server itself;
   // telling the user to run `npm start` there would be wrong.
-  if (process.argv.includes('--quiet')) {
-    console.log('  Đã tạo file cấu hình với khoá bảo mật mới.');
-    return;
-  }
+  if (process.argv.includes('--quiet')) return;
 
-  console.log('\n  Đã tạo .env với khoá bí mật mới.\n');
   console.log('  Tiếp theo:');
-  console.log('    1. Mở .env và đổi ADMIN_EMAIL / ADMIN_PASSWORD thành của bạn');
-  console.log('    2. npm start');
-  console.log('    3. Mở http://localhost:3000\n');
-  console.log('  Lưu ý: KHÔNG gửi file .env cho ai, và không đưa nó lên GitHub.\n');
+  console.log('    1. npm start');
+  console.log('    2. Mở http://localhost:3000\n');
+  console.log('  Lưu ý về .env: đưa nó cho người khác là trao TOÀN QUYỀN — quyền root');
+  console.log('  vào VPS và quyền phát live trên kênh của bạn. Chỉ đưa cho người bạn');
+  console.log('  thật sự muốn dùng chung dữ liệu, và đừng bao giờ đưa nó lên GitHub.\n');
 }
 
 main();

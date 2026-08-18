@@ -47,20 +47,65 @@ var READ_SKIP = { History: true };
 /** Số dòng tối đa giữ lại ở tab History. Cũ hơn thì bị cắt bớt. */
 var HISTORY_MAX_ROWS = 500;
 
-/** Các tab script này quản lý. Cột đầu luôn là `id`. */
+/**
+ * Cột dùng làm KHOÁ của mỗi tab.
+ *
+ * Trước đây luôn là `id`. Nhưng `id` là AUTOINCREMENT đánh riêng theo từng máy, nên
+ * `Projects#3` của máy A và `Projects#3` của máy B là CÙNG một dòng Sheet trong khi
+ * là hai project khác nhau — hai máy ghi đè lẫn nhau vô tận. `uuid` sinh một lần và
+ * đi theo dòng dữ liệu, nên nhiều máy dùng chung một Sheet mới an toàn.
+ *
+ * `id` vẫn được đồng bộ như một cột bình thường, vì tên systemd unit và file env trên
+ * VPS được đặt theo id (`live-manager-<id>`, `dest-<id>.env`) nên không đánh số lại
+ * được. Meta không có uuid: nó chỉ là vài dòng cấu hình do script tự quản.
+ */
+var KEY_COL = {
+  Servers: 'uuid',
+  Videos: 'uuid',
+  Projects: 'uuid',
+  Playlist: 'uuid',
+  Destinations: 'uuid',
+  History: 'uuid',
+  Meta: 'id',
+};
+
+function keyOf(tab) {
+  return KEY_COL[tab] || 'id';
+}
+
+/**
+ * Các tab script này quản lý.
+ *
+ * Cột mới LUÔN thêm vào CUỐI mảng, không chèn vào giữa. writeAll đọc dòng cũ theo vị
+ * trí rồi ghi lại theo header mới: thêm ở cuối thì dòng cũ chỉ được đệm thêm ô trống
+ * và dữ liệu vẫn thẳng cột, còn chèn vào giữa sẽ làm lệch toàn bộ Sheet đang có.
+ *
+ * Đổi KEY_COL hoặc thêm cột thì app sẽ tự dựng lại Sheet một lần (xoá tab rồi ghi lại
+ * từ SQLite) trước lần ghi đầu tiên — xem key_scheme_pending trong sheets.service.
+ *
+ * Các cột `enc_*` là bản MÃ HOÁ (AES-256-GCM, dạng `v1:iv:ct:tag`) của mật khẩu SSH,
+ * SSH private key và URL RTMPS kèm Stream key. Chúng nằm trên Sheet để một máy khác
+ * chỉ cần file .env là dựng lại được toàn bộ. Không có APP_ENCRYPTION_KEY — thứ chỉ
+ * nằm trong .env và không bao giờ được gửi lên đây — thì chúng là chuỗi vô nghĩa.
+ */
 var TABS = {
   Servers: ['id', 'name', 'host', 'port', 'username', 'os', 'ffmpeg', 'rtmps',
-            'disk_used', 'disk_total', 'setup_state', 'note', 'updated_at'],
+            'disk_used', 'disk_total', 'setup_state', 'note', 'updated_at',
+            'auth_type', 'enc_password', 'enc_private_key', 'host_key_fp', 'uuid'],
   Videos: ['id', 'server_id', 'name', 'size', 'duration', 'resolution', 'fps',
            'codec', 'audio', 'keyframe_gap', 'status', 'source', 'remote_path',
-           'note', 'updated_at'],
+           'note', 'updated_at', 'uuid'],
   Projects: ['id', 'server_id', 'name', 'video_count', 'destination_count',
-             'note', 'updated_at'],
-  Playlist: ['id', 'project_id', 'position', 'video_id', 'video_name', 'updated_at'],
+             'note', 'updated_at', 'uuid'],
+  Playlist: ['id', 'project_id', 'position', 'video_id', 'video_name',
+             'updated_at', 'uuid'],
   Destinations: ['id', 'project_id', 'name', 'status', 'key_masked', 'uptime',
                  'throughput', 'auto_refresh', 'loop', 'planned_end',
-                 'recover_count', 'note', 'updated_at'],
-  History: ['id', 'time', 'type', 'message'],
+                 'recover_count', 'note', 'updated_at',
+                 'enc_rtmps_url', 'auto_refresh_enabled', 'auto_recover_enabled',
+                 'runtime_max_seconds', 'loop_mode', 'loop_count', 'loop_hours',
+                 'systemd_unit', 'uuid'],
+  History: ['id', 'time', 'type', 'message', 'uuid'],
   Meta: ['id', 'key', 'value', 'updated_at'],
 };
 
@@ -153,13 +198,15 @@ function readAll(onlyTabs) {
       continue;
     }
 
+    // Đọc theo hàng tiêu đề THẬT của Sheet, không theo TABS: nếu Sheet còn ở phiên
+    // bản cột cũ thì cột thiếu chỉ đơn giản là không có trong obj, không bị lệch ô.
     var header = values[0].map(function (h) { return String(h).trim(); });
+    var key = keyOf(tab);
     var rows = [];
 
     for (var r = 1; r < values.length; r++) {
       var row = values[r];
       var obj = {};
-      var hasId = false;
 
       for (var c = 0; c < header.length; c++) {
         if (!header[c]) continue;
@@ -168,8 +215,10 @@ function readAll(onlyTabs) {
         obj[header[c]] = v === '' || v === null || v === undefined ? null : v;
       }
 
-      hasId = obj.id !== null && obj.id !== undefined && String(obj.id).trim() !== '';
-      if (hasId) rows.push(obj);
+      // Bỏ qua dòng không có khoá, để người dùng chèn dòng trống hoặc ghi chú bên
+      // dưới mà app không hiểu nhầm thành dữ liệu.
+      var k = obj[key];
+      if (k !== null && k !== undefined && String(k).trim() !== '') rows.push(obj);
     }
 
     out[tab] = { header: header, rows: rows };
@@ -205,16 +254,33 @@ function writeAll(upserts, deletes) {
     var sheet = ensureSheet(ss, tab);
     var header = TABS[tab];
     var values = sheet.getDataRange().getValues();
+    var keyCol = keyOf(tab);
 
-    // Dòng hiện có, theo id.
+    /*
+     * Vị trí cột khoá TRONG SHEET, không phải trong TABS.
+     *
+     * Hai cái chỉ khác nhau đúng một lúc: ngay sau khi nâng cấp, khi Sheet còn hàng
+     * tiêu đề cũ chưa có cột uuid. Đọc theo tiêu đề thật thì dòng cũ vẫn nhận đúng ô.
+     * -1 nghĩa là Sheet chưa hề có cột khoá — mọi dòng cũ bị bỏ và tab được ghi lại
+     * từ đầu, nên lần ghi đầu tiên sau khi nâng cấp BẮT BUỘC phải là một bootstrap
+     * đầy đủ (app tự làm, xem key_scheme_pending trong sheets.service).
+     */
+    var existingHeader = values.length
+      ? values[0].map(function (h) { return String(h).trim(); })
+      : [];
+    var keyIndex = existingHeader.indexOf(keyCol);
+
+    // Dòng hiện có, theo khoá.
     var byId = {};
     var order = [];
-    for (var r = 1; r < values.length; r++) {
-      var id = values[r][0];
-      if (id === '' || id === null || id === undefined) continue;
-      var key = String(id);
-      byId[key] = values[r];
-      order.push(key);
+    if (keyIndex !== -1) {
+      for (var r = 1; r < values.length; r++) {
+        var kv = values[r][keyIndex];
+        if (kv === '' || kv === null || kv === undefined) continue;
+        var rowKey = String(kv);
+        byId[rowKey] = values[r];
+        order.push(rowKey);
+      }
     }
 
     // Xoá.
@@ -233,8 +299,8 @@ function writeAll(upserts, deletes) {
     var rows = upserts[tab] || [];
     for (var i = 0; i < rows.length; i++) {
       var incoming = rows[i];
-      if (incoming.id === null || incoming.id === undefined) continue;
-      var k = String(incoming.id);
+      if (incoming[keyCol] === null || incoming[keyCol] === undefined) continue;
+      var k = String(incoming[keyCol]);
 
       var line = byId[k] ? byId[k].slice() : [];
       // Chuẩn hoá đúng độ dài hàng tiêu đề.

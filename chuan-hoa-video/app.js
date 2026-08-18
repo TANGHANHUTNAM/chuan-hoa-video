@@ -28,6 +28,20 @@ const { spawn, spawnSync } = require('node:child_process');
 const ROOT = __dirname;
 
 /**
+ * Read the Live Manager's .env when this folder is still sitting next to it, so one
+ * file configures both apps — which is the point of .env being the single place
+ * settings live. A folder copied out on its own has no .env above it, and that is
+ * fine: every value below has a working default.
+ */
+let sharedEnv = false;
+try {
+  process.loadEnvFile(path.resolve(ROOT, '..', '.env'));
+  sharedEnv = true;
+} catch {
+  // Standalone copy — nothing to load.
+}
+
+/**
  * The two working folders live one level up, beside the launchers.
  *
  * Someone who does not write code unzips the folder and has to SEE where the video
@@ -44,8 +58,18 @@ const BASE = process.env.CHV_BASE
 const INBOX = path.join(BASE, 'video-can-chuan-hoa');
 const OUTBOX = path.join(BASE, 'video-da-chuan-hoa');
 
-// Not 3000: the Live Manager uses that, and both are meant to be open at once.
-const PORT = Number(process.env.PORT) || 3100;
+/**
+ * Not 3000: the Live Manager uses that, and both are meant to be open at once.
+ *
+ * CHV_PORT rather than PORT, precisely because the shared .env sets PORT=3000 for the
+ * OTHER app — reading PORT here would put both on the same port and whichever started
+ * second would fail. PORT is still honoured when there is no shared .env, i.e. this
+ * folder was copied out to run on its own.
+ */
+const PORT =
+  Number(process.env.CHV_PORT) ||
+  (sharedEnv ? 0 : Number(process.env.PORT)) ||
+  3100;
 
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.avi', '.flv', '.m4v', '.webm', '.ts', '.mpg', '.mpeg', '.wmv']);
 

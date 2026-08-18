@@ -24,6 +24,30 @@ function unitName(destinationId) {
   return `live-manager-${destinationId}`;
 }
 
+/**
+ * How long systemd keeps trying to bring FFmpeg back before it gives up.
+ *
+ * This is the reconnect budget for the auto-refresh recycle, and it was far too
+ * small. At RuntimeMaxSec the unit is killed and Restart=always brings it back after
+ * RestartSec — but Facebook does not release the previous RTMP session instantly, so
+ * the first attempts fail in about a second each. With the old RestartSec=5 and
+ * StartLimitBurst=5 that was five tries inside roughly 30 SECONDS, after which
+ * systemd answered "start request repeated too quickly" and stopped for good. The
+ * 7h45 recycle then killed the broadcast it exists to save, and nothing restarted it.
+ *
+ * A wrong stream key and a slow reconnect differ by how LONG failure lasts, not by
+ * how many attempts it takes, so the budget is written as time: burst x delay. Five
+ * minutes is far more than Facebook needs and still stops a genuinely broken
+ * destination instead of retrying it forever.
+ *
+ * Making this generous costs nothing in feedback speed: a wrong key is reported
+ * within seconds by inspectEarlyFailure (live.service), which reads the journal four
+ * seconds after Start. This limit was never what made that fast.
+ */
+const RESTART_DELAY_SECONDS = 10;
+const RESTART_BUDGET_SECONDS = 300;
+const RESTART_BURST = RESTART_BUDGET_SECONDS / RESTART_DELAY_SECONDS;
+
 const unitFilePath = (destinationId) => `/etc/systemd/system/${unitName(destinationId)}.service`;
 const envFilePath = (destinationId) => `${config.remote.secrets}/dest-${Number(destinationId)}.env`;
 
@@ -125,11 +149,11 @@ function buildUnitFile({
     `Description=${description}`,
     'After=network-online.target',
     'Wants=network-online.target',
-    // Without a start-limit window, a permanently bad stream key would make
-    // systemd retry forever. Five attempts then stop, so the app can report the
-    // real reason instead of hiding it in an endless restart loop.
-    'StartLimitIntervalSec=300',
-    'StartLimitBurst=5',
+    // Without a start-limit window, a permanently bad stream key would make systemd
+    // retry forever. The window has to outlast the budget itself, or systemd would
+    // count attempts from an earlier failure against this one.
+    `StartLimitIntervalSec=${RESTART_BUDGET_SECONDS * 3}`,
+    `StartLimitBurst=${RESTART_BURST}`,
     '',
     '[Service]',
     'Type=simple',
@@ -143,7 +167,9 @@ function buildUnitFile({
     // a finished broadcast stay finished while still restarting a crash (the same
     // probe, made to exit 1, was restarted 4 times).
     endsItself ? 'Restart=on-failure' : 'Restart=always',
-    'RestartSec=5',
+    // Long enough that a reconnect is not hammering a session Facebook has not let
+    // go of yet, short enough that a real crash is back on air quickly.
+    `RestartSec=${RESTART_DELAY_SECONDS}`,
   ];
 
   if (autoRefresh && !endsItself) {

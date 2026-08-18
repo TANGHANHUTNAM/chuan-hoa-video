@@ -157,23 +157,104 @@ async function handlePlannedEnd(project, dest, entry) {
   return true;
 }
 
+/**
+ * How long a destination must have been on air before a death is treated as bad luck
+ * rather than bad configuration.
+ *
+ * A stream that dies minutes after starting has something wrong with it — the stream
+ * key, the video, the network — and restarting it on a timer would bury the message
+ * the user has to read. A stream that ran for hours and then died is the case worth
+ * rescuing, and it is exactly what the 7h45 recycle produces.
+ *
+ * Also what bounds the retry loop, because `live.restart` sets started_at afresh: a
+ * destination that dies again inside this window is not touched a second time.
+ */
+const DEAD_RECOVERY_MIN_UPTIME_MS = 10 * 60_000;
+
+/**
+ * Brings back a destination that systemd has given up on.
+ *
+ * Until now a dead unit was only ever reported, which left the exact failure this
+ * app exists to prevent. At the auto-refresh recycle FFmpeg is killed and restarted;
+ * if Facebook has not released the previous RTMP session yet the first attempts fail,
+ * systemd hits its start limit, answers "start request repeated too quickly" and
+ * stops — and nothing tried again. The recycle killed the broadcast it was meant to
+ * save, and the app reported it as an incident instead of fixing it.
+ *
+ * `live.restart` runs `systemctl reset-failed` before `systemctl restart`, so it
+ * clears precisely the state systemd is stuck in. The wider restart budget in
+ * ffmpeg.service should stop this being reached at all; this is the second line.
+ */
+async function recoverDeadDestination(project, dest) {
+  if (dest.auto_recover_enabled !== 1) return;
+
+  const startedAt = parseTimestamp(dest.started_at);
+  if (!startedAt) return;
+  if (Date.now() - startedAt.getTime() < DEAD_RECOVERY_MIN_UPTIME_MS) return;
+
+  if (!shouldAttemptRecovery(dest.id)) return;
+
+  try {
+    // preserveDeadline for the same reason the stall path uses it: a rescue must not
+    // hand a finite broadcast a fresh clock and run it past the hour it was given.
+    await live.restart(dest.id, { preserveDeadline: true });
+    live.patch(dest.id, {
+      recover_count: (dest.recover_count || 0) + 1,
+      last_out_time_us: null,
+      last_progress_at: null,
+      last_error: null,
+    });
+    recoveryFailures.delete(dest.id);
+    reportedDestinationState.delete(dest.id);
+    logActivity(
+      'live_recovered',
+      `[${project.name}] ${dest.name} đã được tự khởi động lại sau khi systemd bỏ cuộc.`,
+      'live_destination',
+      dest.id
+    );
+    logger.info(`Recovered dead destination ${dest.id} after systemd gave up`);
+  } catch (err) {
+    const failures = (recoveryFailures.get(dest.id) || 0) + 1;
+    recoveryFailures.set(dest.id, failures);
+    if (failures === 1 || failures % 10 === 0) {
+      logActivity(
+        'live_recover_failed',
+        `[${project.name}] ${dest.name}: chưa tự khởi động lại được — ${err.message}`,
+        'live_destination',
+        dest.id
+      );
+    }
+    logger.warn(`Could not recover dead destination ${dest.id}: ${err.message}`);
+  }
+}
+
 async function handleDeadDestination(project, dest, status) {
-  // Report each distinct bad state once, not every sweep.
-  if (reportedDestinationState.get(dest.id) === status) return;
-  reportedDestinationState.set(dest.id, status);
+  /*
+   * Reporting and recovering are separate concerns — the same split checkForStall
+   * already makes, and for the same reason. Gating recovery on the "report once"
+   * flag would mean the first sweep reports, every later sweep returns early, and a
+   * recoverable stream stays dead for as long as the app runs.
+   */
+  if (reportedDestinationState.get(dest.id) !== status) {
+    reportedDestinationState.set(dest.id, status);
 
-  const problem = await explainFailure(dest.id);
-  const reason = problem ? `${problem.title}. ${problem.message}` : 'Không rõ nguyên nhân.';
+    const problem = await explainFailure(dest.id);
+    const reason = problem ? `${problem.title}. ${problem.message}` : 'Không rõ nguyên nhân.';
 
-  live.patch(dest.id, { last_error: problem ? problem.title : 'Điểm phát đã dừng ngoài ý muốn' });
+    live.patch(dest.id, {
+      last_error: problem ? problem.title : 'Điểm phát đã dừng ngoài ý muốn',
+    });
 
-  logActivity(
-    'live_incident',
-    `[${project.name}] ${dest.name} dừng ngoài ý muốn (${status}). ${reason}`,
-    'live_destination',
-    dest.id
-  );
-  logger.warn(`Incident: destination ${dest.id} (${dest.name}) is ${status} — ${reason}`);
+    logActivity(
+      'live_incident',
+      `[${project.name}] ${dest.name} dừng ngoài ý muốn (${status}). ${reason}`,
+      'live_destination',
+      dest.id
+    );
+    logger.warn(`Incident: destination ${dest.id} (${dest.name}) is ${status} — ${reason}`);
+  }
+
+  await recoverDeadDestination(project, dest);
 }
 
 /**
@@ -420,6 +501,7 @@ module.exports = {
   isIntendedRunning,
   checkForStall,
   handlePlannedEnd,
+  handleDeadDestination,
   // Exposed so tests can assert the dedupe behaviour.
   reportedDestinationState,
   reportedUnreachableServers,
